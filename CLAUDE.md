@@ -88,6 +88,7 @@ prisma/
 - Componentes pequeños, sin librerías de UI pesadas. Tailwind directo.
 - Mobile first: la mayoría de los huéspedes llega desde Instagram o WhatsApp en el celular.
 - Commits pequeños y descriptivos en español, uno por paso terminado.
+- Nunca muestres en la terminal el contenido de .env ni URLs de conexión con contraseña. Si necesitas verificarlo, di solo si las variables existen.
 
 ## Fuera de alcance (no construir aunque parezca útil)
 
