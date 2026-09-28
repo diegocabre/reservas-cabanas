@@ -1,0 +1,224 @@
+// Esquema de Reservas Cabañas Sur.
+//
+// Convenciones:
+// - Tablas y columnas en snake_case en Postgres (@@map / @map); en TypeScript quedan en camelCase.
+// - Montos en CLP como enteros (Int). Nunca Float ni Decimal.
+// - Fechas de estadía y rangos como `date` (@db.Date), sin hora.
+// - TODOS los rangos de fechas son semiabiertos [desde, hasta): el último día es EXCLUSIVO.
+//   Aplica a Reserva (check_in, check_out), Temporada (desde, hasta) y Bloqueo (desde, hasta),
+//   igual que DTEND en iCal. Siempre hasta > desde (check en la migración).
+// - La restricción anti doble reserva (exclude using gist) y los checks de rangos viven en una
+//   migración escrita a mano, porque Prisma no los soporta en el schema.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RolAdmin {
+  dueno
+  staff
+
+  @@map("rol_admin")
+}
+
+enum EstadoReserva {
+  pendiente_pago
+  confirmada
+  cancelada
+  completada
+
+  @@map("estado_reserva")
+}
+
+enum OrigenReserva {
+  web
+  airbnb
+  booking
+  manual
+
+  @@map("origen_reserva")
+}
+
+enum ProveedorPago {
+  mercadopago
+  flow
+  transferencia
+
+  @@map("proveedor_pago")
+}
+
+enum EstadoPago {
+  pendiente
+  aprobado
+  rechazado
+
+  @@map("estado_pago")
+}
+
+enum OrigenBloqueo {
+  manual
+  ical
+
+  @@map("origen_bloqueo")
+}
+
+enum Plataforma {
+  airbnb
+  booking
+
+  @@map("plataforma")
+}
+
+model Propiedad {
+  id                    String   @id @default(uuid()) @db.Uuid
+  nombre                String
+  slug                  String   @unique
+  whatsapp              String
+  email                 String
+  abonoPct              Int      @default(50) @map("abono_pct")
+  politicaCancelacion   String?  @map("politica_cancelacion")
+  instruccionesLlegada  String?  @map("instrucciones_llegada")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  admins  Admin[]
+  cabanas Cabana[]
+
+  @@map("propiedad")
+}
+
+model Admin {
+  // Mismo id que el usuario de Supabase Auth (auth.users.id), por eso no se genera.
+  id          String    @id @db.Uuid
+  propiedadId String    @map("propiedad_id") @db.Uuid
+  email       String    @unique
+  rol         RolAdmin  @default(dueno)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  propiedad Propiedad @relation(fields: [propiedadId], references: [id])
+
+  @@index([propiedadId])
+  @@map("admin")
+}
+
+model Cabana {
+  id          String   @id @default(uuid()) @db.Uuid
+  propiedadId String   @map("propiedad_id") @db.Uuid
+  nombre      String
+  slug        String
+  capacidad   Int
+  dormitorios Int
+  descripcion String   @default("")
+  servicios   String[] @default([])
+  fotos       String[] @default([])
+  minNoches   Int      @default(1) @map("min_noches")
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  propiedad           Propiedad           @relation(fields: [propiedadId], references: [id])
+  temporadas          Temporada[]
+  reservas            Reserva[]
+  bloqueos            Bloqueo[]
+  calendariosExternos CalendarioExterno[]
+
+  @@unique([propiedadId, slug])
+  @@map("cabana")
+}
+
+model Temporada {
+  id          String   @id @default(uuid()) @db.Uuid
+  cabanaId    String   @map("cabana_id") @db.Uuid
+  nombre      String
+  desde       DateTime @db.Date // inclusivo
+  hasta       DateTime @db.Date // EXCLUSIVO: [desde, hasta)
+  precioNoche Int      @map("precio_noche")
+  minNoches   Int?     @map("min_noches") // si es null, rige cabana.min_noches
+
+  cabana Cabana @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+
+  @@index([cabanaId, desde])
+  @@map("temporada")
+}
+
+model Reserva {
+  id              String        @id @default(uuid()) @db.Uuid
+  codigo          String        @unique // legible, ej. PV-0142
+  cabanaId        String        @map("cabana_id") @db.Uuid
+  checkIn         DateTime      @map("check_in") @db.Date // inclusivo
+  checkOut        DateTime      @map("check_out") @db.Date // EXCLUSIVO: ese día queda libre para otra llegada
+  adultos         Int
+  ninos           Int           @default(0)
+  huespedNombre   String        @map("huesped_nombre")
+  huespedEmail    String        @map("huesped_email")
+  huespedTelefono String        @map("huesped_telefono")
+  huespedRut      String?       @map("huesped_rut")
+  total           Int
+  abono           Int
+  estado          EstadoReserva @default(pendiente_pago)
+  origen          OrigenReserva @default(web)
+  expiraEn        DateTime?     @map("expira_en") @db.Timestamptz(3)
+  notas           String?
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  cabana Cabana @relation(fields: [cabanaId], references: [id])
+  pagos  Pago[]
+
+  @@index([cabanaId, checkIn])
+  @@index([estado, expiraEn])
+  @@map("reserva")
+}
+
+model Pago {
+  id         String        @id @default(uuid()) @db.Uuid
+  reservaId  String        @map("reserva_id") @db.Uuid
+  proveedor  ProveedorPago
+  monto      Int
+  estado     EstadoPago    @default(pendiente)
+  refExterna String?       @map("ref_externa")
+  pagadoEn   DateTime?     @map("pagado_en") @db.Timestamptz(3)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  reserva Reserva @relation(fields: [reservaId], references: [id])
+
+  @@index([reservaId])
+  @@index([refExterna])
+  @@map("pago")
+}
+
+model Bloqueo {
+  id         String        @id @default(uuid()) @db.Uuid
+  cabanaId   String        @map("cabana_id") @db.Uuid
+  desde      DateTime      @db.Date // inclusivo
+  hasta      DateTime      @db.Date // EXCLUSIVO: [desde, hasta), igual que DTEND en iCal
+  motivo     String?
+  origen     OrigenBloqueo @default(manual)
+  uidExterno String?       @map("uid_externo") // UID del evento iCal
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  cabana Cabana @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+
+  @@unique([cabanaId, uidExterno])
+  @@index([cabanaId, desde])
+  @@map("bloqueo")
+}
+
+model CalendarioExterno {
+  id         String     @id @default(uuid()) @db.Uuid
+  cabanaId   String     @map("cabana_id") @db.Uuid
+  plataforma Plataforma
+  urlIcal    String     @map("url_ical")
+  ultimoSync DateTime?  @map("ultimo_sync") @db.Timestamptz(3)
+
+  cabana Cabana @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+
+  @@unique([cabanaId, plataforma])
+  @@map("calendario_externo")
+}
