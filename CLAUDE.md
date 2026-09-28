@@ -25,6 +25,7 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 - Fechas de estadía (`check_in`, `check_out`) como `date`, no `timestamp`. El día de `check_out` queda libre para otra llegada.
 - Todos los rangos de fechas son semiabiertos `[desde, hasta)`: el último día es EXCLUSIVO. Aplica a `Reserva` (`check_in`, `check_out`), `Temporada` (`desde`, `hasta`) y `Bloqueo` (`desde`, `hasta`), igual que `DTEND` en iCal. Ej.: una temporada del 15 dic al 28 feb se guarda como `desde = 15-dic`, `hasta = 1-mar`. Siempre `hasta > desde`.
 - Noches = `check_out - check_in`. El precio se calcula noche por noche según la temporada que cubre cada noche.
+- Si alguna noche no está cubierta por una `Temporada`, el cálculo de precio (`lib/precios.ts`) debe fallar con un error claro que indique la cabaña y la fecha sin temporada. Nunca cobrar 0 por esa noche.
 - Estados de reserva: `pendiente_pago`, `confirmada`, `cancelada`, `completada`.
 - Origen de reserva: `web`, `airbnb`, `booking`, `manual`.
 - La base es multi-propiedad desde el inicio: toda cabaña pertenece a una `Propiedad`, y toda consulta del panel filtra por la propiedad del admin.
