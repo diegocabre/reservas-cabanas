@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Reservas Cabañas Sur
 
 Sistema de reservas para cabañas y hoteles boutique del sur de Chile (Puerto Varas, Frutillar, Ensenada). Proyecto de Soluciones DyS SpA, construido en público para Instagram entre el 28 de septiembre y el 26 de octubre de 2026.
