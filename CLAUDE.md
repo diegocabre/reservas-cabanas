@@ -29,6 +29,7 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 - Estados de reserva: `pendiente_pago`, `confirmada`, `cancelada`, `completada`.
 - Origen de reserva: `web`, `airbnb`, `booking`, `manual`.
 - La base es multi-propiedad desde el inicio: toda cabaña pertenece a una `Propiedad`, y toda consulta del panel filtra por la propiedad del admin.
+- RLS activado en todas las tablas; nuevas tablas también deben activarlo en su migración (`alter table "x" enable row level security;`, sin políticas). Toda lectura y escritura pasa por Prisma en el servidor, que se conecta como `postgres` (dueño de las tablas, con `BYPASSRLS`); la API pública de Supabase (`anon`, `authenticated`) no tiene acceso a nada. Incluye `_prisma_migrations`.
 
 ## Modelo de datos
 
