@@ -5,6 +5,7 @@ import {
   MinimoNochesError,
   NocheSinTemporadaError,
   nochesEntre,
+  precioDesde,
   RangoInvalidoError,
   TemporadasTraslapadasError,
   type TemporadaPrecio,
@@ -136,6 +137,26 @@ describe("calcularPrecio", () => {
       // 14 dic baja + 15 dic alta: 2 noches no alcanzan.
       expect(() => cotizar("2026-12-14", "2026-12-16")).toThrow(MinimoNochesError);
     });
+  });
+});
+
+describe("precioDesde", () => {
+  it("devuelve el menor precio entre las temporadas vigentes", () => {
+    expect(precioDesde(temporadas, "2026-10-01")).toBe(75_000);
+  });
+
+  it("ignora temporadas que ya terminaron (hasta es exclusivo)", () => {
+    const ts = [
+      { hasta: "2026-12-15", precioNoche: 75_000 },
+      { hasta: "2027-03-01", precioNoche: 120_000 },
+    ];
+    expect(precioDesde(ts, "2026-12-14")).toBe(75_000);
+    expect(precioDesde(ts, "2026-12-15")).toBe(120_000); // la baja terminó el 14
+  });
+
+  it("devuelve null si no queda ninguna temporada vigente", () => {
+    expect(precioDesde(temporadas, "2028-01-01")).toBeNull();
+    expect(precioDesde([], "2026-10-01")).toBeNull();
   });
 });
 

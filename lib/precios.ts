@@ -141,6 +141,19 @@ export function calcularPrecio(params: {
   };
 }
 
+/**
+ * Precio "desde" para mostrar en la página pública: el menor precio por noche
+ * entre las temporadas que aún no terminan (hasta > hoy). null si no queda ninguna.
+ */
+export function precioDesde(
+  temporadas: Pick<TemporadaPrecio, "hasta" | "precioNoche">[],
+  hoy: Fecha,
+): number | null {
+  const hoyIso = aFechaIso(hoy);
+  const vigentes = temporadas.filter((t) => aFechaIso(t.hasta) > hoyIso).map((t) => t.precioNoche);
+  return vigentes.length ? Math.min(...vigentes) : null;
+}
+
 /** Abono a pagar online: porcentaje del total, redondeado al peso. */
 export function calcularAbono(total: number, abonoPct: number): number {
   if (!Number.isInteger(total) || total < 0) {
