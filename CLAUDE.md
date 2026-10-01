@@ -66,7 +66,7 @@ Ajusta los nombres de tabla y columna a como Prisma los genere (usa `@@map` y `@
 ```
 app/
   (public)/[propiedad]/[cabana]/page.tsx   página pública de la cabaña
-  reservar/[cabana]/                       fechas + datos del huésped
+  reservar/[propiedad]/[cabana]/           fechas + datos del huésped (el slug de cabaña solo es único dentro de su propiedad)
   reserva/[codigo]/page.tsx                confirmación
   admin/                                   panel del dueño (protegido)
   api/                                     webhooks e iCal
