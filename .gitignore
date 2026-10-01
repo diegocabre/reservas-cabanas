@@ -52,3 +52,6 @@ next-env.d.ts
 
 # editor
 .vscode/
+
+# configuración local del servidor de vista previa de Claude Code
+.claude/launch.json
