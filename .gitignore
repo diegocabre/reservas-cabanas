@@ -46,3 +46,9 @@ next-env.d.ts
 
 # cliente Prisma generado
 /lib/generated/
+
+# videos y grabaciones (no van al repo)
+*.mp4
+
+# editor
+.vscode/
