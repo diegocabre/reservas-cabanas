@@ -1,26 +1,65 @@
 @import "tailwindcss";
 
+/*
+ * Paleta "sur de Chile": madera, lago, musgo, volcán y el fuego de la salamandra.
+ * ÚNICA fuente de los colores. Para dar colores propios a una propiedad, basta con
+ * sobrescribir estas variables en un contenedor (ej. style={{ "--lago": "#..." }}).
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --papel: #f6f0e6; /* fondo crema, como papel de pino */
+  --papel-hondo: #ebe0cd; /* tarjetas y chips */
+  --nieve: #fffdf9; /* superficies claras */
+  --tinta: #2a2420; /* texto principal, café casi negro */
+  --tinta-suave: #6a5d52; /* texto secundario */
+  --madera: #8a5636; /* madera de mañío */
+  --madera-clara: #c99a6b;
+  --lago: #1d4a5a; /* azul petróleo del Llanquihue */
+  --musgo: #56663a;
+  --volcan: #3b3a37;
+  --fuego: #c0522a; /* llamado a la acción */
+  --fuego-hondo: #a14320;
+  --linea: rgb(42 36 32 / 0.12);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-papel: var(--papel);
+  --color-papel-hondo: var(--papel-hondo);
+  --color-nieve: var(--nieve);
+  --color-tinta: var(--tinta);
+  --color-tinta-suave: var(--tinta-suave);
+  --color-madera: var(--madera);
+  --color-madera-clara: var(--madera-clara);
+  --color-lago: var(--lago);
+  --color-musgo: var(--musgo);
+  --color-volcan: var(--volcan);
+  --color-fuego: var(--fuego);
+  --color-fuego-hondo: var(--fuego-hondo);
+  --color-linea: var(--linea);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-texto);
+  --font-display: var(--font-titulo);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--papel);
+  color: var(--tinta);
+}
+
+/* Vetas de madera muy sutiles en el fondo de las tarjetas. */
+.vetas {
+  background-image: repeating-linear-gradient(
+    100deg,
+    transparent 0 22px,
+    rgb(138 86 54 / 0.035) 22px 23px,
+    transparent 23px 41px,
+    rgb(138 86 54 / 0.025) 41px 42px
+  );
+}
+
+/* Oculta la barra de scroll del carrusel sin quitar el desplazamiento. */
+.sin-scrollbar {
+  scrollbar-width: none;
+}
+.sin-scrollbar::-webkit-scrollbar {
+  display: none;
 }
