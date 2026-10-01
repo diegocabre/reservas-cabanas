@@ -69,6 +69,7 @@ const CABANAS = [
 async function main() {
   const propiedadDatos = {
     nombre: "Cabañas Lago Llanquihue",
+    ubicacion: "Puerto Varas · Lago Llanquihue",
     whatsapp: "+56912345678",
     email: "contacto@example.com",
     abonoPct: 50,

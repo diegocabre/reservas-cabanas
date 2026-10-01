@@ -50,6 +50,15 @@ export function IconoHoja({ className }: Props) {
   );
 }
 
+export function IconoUbicacion({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" />
+      <circle cx="12" cy="10" r="2.3" />
+    </svg>
+  );
+}
+
 export function IconoFlecha({ className }: Props) {
   return (
     <svg {...base} className={className}>

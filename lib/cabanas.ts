@@ -19,7 +19,7 @@ export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSl
       servicios: true,
       fotos: true,
       minNoches: true,
-      propiedad: { select: { nombre: true, slug: true } },
+      propiedad: { select: { nombre: true, slug: true, ubicacion: true } },
       temporadas: { select: { hasta: true, precioNoche: true } },
     },
   });

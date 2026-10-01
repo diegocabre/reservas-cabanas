@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Galeria } from "@/components/cabana/galeria";
 import { BotonDisponibilidad, PrecioDesde } from "@/components/cabana/precio-desde";
-import { IconoCama, IconoHoja, IconoPersonas } from "@/components/iconos";
+import { IconoCama, IconoHoja, IconoPersonas, IconoUbicacion } from "@/components/iconos";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { obtenerCabanaPublica } from "@/lib/cabanas";
 import { fotoParaCompartir } from "@/lib/fotos";
@@ -25,6 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const titulo = `${cabana.nombre} · ${cabana.propiedad.nombre}`;
   const resumen = [
+    cabana.propiedad.ubicacion,
     `${cabana.capacidad} personas`,
     `${cabana.dormitorios} ${cabana.dormitorios === 1 ? "dormitorio" : "dormitorios"}`,
     cabana.precioDesde !== null ? `desde ${formatearCLP(cabana.precioDesde)} por noche` : null,
@@ -70,6 +71,12 @@ export default async function PaginaCabana({ params }: Props) {
       <div className="mx-auto max-w-6xl px-5 pt-6 md:grid md:grid-cols-[1fr_20rem] md:gap-14 md:px-6 md:pt-10">
         <article>
           <p className="text-xs font-bold tracking-[0.18em] text-madera uppercase">{cabana.propiedad.nombre}</p>
+          {cabana.propiedad.ubicacion && (
+            <p className="mt-1 flex items-center gap-1 text-sm text-tinta-suave">
+              <IconoUbicacion className="size-4 shrink-0 text-madera" />
+              {cabana.propiedad.ubicacion}
+            </p>
+          )}
           <h1 className="mt-2 font-display text-[2.1rem] leading-[1.05] font-semibold text-balance text-tinta md:text-5xl">
             {cabana.nombre}
           </h1>

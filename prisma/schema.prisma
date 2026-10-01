@@ -78,6 +78,7 @@ model Propiedad {
   id                    String   @id @default(uuid()) @db.Uuid
   nombre                String
   slug                  String   @unique
+  ubicacion             String? // texto libre, ej. "Puerto Varas · Lago Llanquihue"
   whatsapp              String
   email                 String
   abonoPct              Int      @default(50) @map("abono_pct")
