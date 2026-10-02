@@ -30,3 +30,38 @@ export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSl
 });
 
 export type CabanaPublica = NonNullable<Awaited<ReturnType<typeof obtenerCabanaPublica>>>;
+
+/**
+ * Propiedad con sus cabañas activas para la página de la propiedad, o null si no existe.
+ * Cada cabaña trae su precio "desde"; la propiedad, el menor entre sus cabañas.
+ */
+export const obtenerPropiedadPublica = cache(async (propiedadSlug: string) => {
+  const propiedad = await db.propiedad.findUnique({
+    where: { slug: propiedadSlug },
+    select: {
+      nombre: true,
+      slug: true,
+      ubicacion: true,
+      cabanas: {
+        where: { activa: true },
+        orderBy: { createdAt: "asc" },
+        select: {
+          nombre: true,
+          slug: true,
+          capacidad: true,
+          dormitorios: true,
+          fotos: true,
+          temporadas: { select: { hasta: true, precioNoche: true } },
+        },
+      },
+    },
+  });
+  if (!propiedad) return null;
+
+  const hoy = hoyEnChile();
+  const cabanas = propiedad.cabanas.map(({ temporadas, ...c }) => ({ ...c, precioDesde: precioDesde(temporadas, hoy) }));
+  const precios = cabanas.map((c) => c.precioDesde).filter((p): p is number => p !== null);
+  return { ...propiedad, cabanas, precioDesde: precios.length ? Math.min(...precios) : null };
+});
+
+export type PropiedadPublica = NonNullable<Awaited<ReturnType<typeof obtenerPropiedadPublica>>>;

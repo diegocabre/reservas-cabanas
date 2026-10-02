@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Galeria } from "@/components/cabana/galeria";
 import { BotonDisponibilidad, PrecioDesde } from "@/components/cabana/precio-desde";
-import { IconoCama, IconoHoja, IconoPersonas, IconoUbicacion } from "@/components/iconos";
+import Link from "next/link";
+import { IconoCama, IconoFlecha, IconoHoja, IconoPersonas, IconoUbicacion } from "@/components/iconos";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { obtenerCabanaPublica } from "@/lib/cabanas";
 import { fotoParaCompartir } from "@/lib/fotos";
@@ -64,8 +65,15 @@ export default async function PaginaCabana({ params }: Props) {
 
   return (
     <main className="flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-20">
-      <div className="md:mx-auto md:max-w-6xl md:px-6 md:pt-6">
+      <div className="relative md:mx-auto md:max-w-6xl md:px-6 md:pt-6">
         <Galeria fotos={cabana.fotos} nombre={cabana.nombre} />
+        <Link
+          href={`/${cabana.propiedad.slug}`}
+          className="absolute top-[calc(0.75rem+env(safe-area-inset-top))] left-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-nieve/90 px-3.5 py-2 text-sm font-semibold text-tinta shadow-sm backdrop-blur-sm transition-colors hover:bg-nieve md:top-9 md:left-9"
+        >
+          <IconoFlecha className="size-4 rotate-180" />
+          Todas las cabañas
+        </Link>
       </div>
 
       <div className="mx-auto max-w-6xl px-5 pt-6 md:grid md:grid-cols-[1fr_20rem] md:gap-14 md:px-6 md:pt-10">
