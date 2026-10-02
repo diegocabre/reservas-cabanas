@@ -40,9 +40,10 @@ const CABANAS = [
       "Cabaña de madera nativa con vista al lago y al volcán Osorno. Living con salamandra, cocina equipada y terraza.",
     servicios: ["Wifi", "Salamandra", "Cocina equipada", "Estacionamiento", "Terraza con vista al lago", "Parrilla"],
     fotos: [
-      unsplash("1696940171680-bb5b601a540b"), // cabaña de madera a orillas del lago
+      // La primera es la portada y la vista previa en WhatsApp: luminosa y horizontal.
+      unsplash("1709525481712-65ff5856b9bd"), // muelle de Frutillar con el Osorno, día soleado
       unsplash("1758861356142-546a3822ab1a"), // salamandra con vista al lago
-      unsplash("1709525481712-65ff5856b9bd"), // muelle de Frutillar con el Osorno
+      unsplash("1696940171680-bb5b601a540b"), // cabaña de madera a orillas del lago
       unsplash("1579280456137-aa527151d36d"), // volcán Osorno desde los Saltos del Petrohué
     ],
     precios: { alta: 120_000, media: 95_000, baja: 75_000 },
@@ -56,6 +57,8 @@ const CABANAS = [
       "Cabaña familiar rodeada de arrayanes, a pasos de la playa. Tinaja caliente, quincho y amplio jardín.",
     servicios: ["Wifi", "Tinaja caliente", "Quincho", "Cocina equipada", "Estacionamiento", "Jardín"],
     fotos: [
+      // La primera es la portada y la vista previa en WhatsApp: luminosa y horizontal.
+      unsplash("1708737339521-f3c750942ffb"), // lago Llanquihue azul con el Osorno, cielo despejado
       unsplash("1693921940684-9ba2e70bc33b"), // cabaña de madera en el bosque
       unsplash("1774612193273-96b6d25a64d7"), // living con estufa a leña
       unsplash("1783628417381-f6be9614f208"), // living comedor con techo alto
