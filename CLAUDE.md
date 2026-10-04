@@ -27,6 +27,10 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 - Noches = `check_out - check_in`. El precio se calcula noche por noche según la temporada que cubre cada noche.
 - Si alguna noche no está cubierta por una `Temporada`, el cálculo de precio (`lib/precios.ts`) debe fallar con un error claro que indique la cabaña y la fecha sin temporada. Nunca cobrar 0 por esa noche.
 - Estados de reserva: `pendiente_pago`, `confirmada`, `cancelada`, `completada`.
+- Una reserva web nace en `pendiente_pago` con `expira_en = ahora + 30 min` (`MINUTOS_PARA_PAGAR` en `lib/disponibilidad.ts`). Las pendientes vencidas ya no ocupan fechas y se marcan `cancelada` antes de insertar una nueva reserva en esa cabaña.
+- Código de reserva: `prefijo_codigo` de la propiedad + correlativo por propiedad con 4 dígitos (`LL-0001`). El correlativo se incrementa en la misma transacción que crea la reserva.
+- En reservas web el RUT del huésped es obligatorio (validado con dígito verificador). En la base es opcional porque las reservas de Airbnb, Booking o manuales pueden no traerlo.
+- La página `/reserva/[codigo]` no muestra email, teléfono ni RUT: los códigos son correlativos y fáciles de adivinar.
 - Origen de reserva: `web`, `airbnb`, `booking`, `manual`.
 - La base es multi-propiedad desde el inicio: toda cabaña pertenece a una `Propiedad`, y toda consulta del panel filtra por la propiedad del admin.
 - RLS activado en todas las tablas; nuevas tablas también deben activarlo en su migración (`alter table "x" enable row level security;`, sin políticas). Toda lectura y escritura pasa por Prisma en el servidor, que se conecta como `postgres` (dueño de las tablas, con `BYPASSRLS`); la API pública de Supabase (`anon`, `authenticated`) no tiene acceso a nada. Incluye `_prisma_migrations`.
@@ -35,7 +39,7 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 
 Propiedad, Admin, Cabana, Temporada, Reserva, Pago, Bloqueo, CalendarioExterno.
 
-- **Propiedad**: nombre, slug único, whatsapp, email, abono_pct (default 50), politica_cancelacion, instrucciones_llegada
+- **Propiedad**: nombre, slug único, ubicacion, prefijo_codigo (único), ultimo_correlativo, whatsapp, email, abono_pct (default 50), politica_cancelacion, instrucciones_llegada
 - **Admin**: id (= id de usuario de Supabase Auth), propiedad_id, email, rol (`dueno` | `staff`)
 - **Cabana**: propiedad_id, nombre, slug (único por propiedad), capacidad, dormitorios, descripcion, servicios (text[]), fotos (text[]), min_noches, activa
 - **Temporada**: cabana_id, nombre, desde, hasta (date), precio_noche (int), min_noches (opcional)
@@ -99,6 +103,6 @@ Chatbot o IA, WhatsApp Business API, boleta electrónica SII, multi-idioma, cupo
 ## Comandos
 
 - `npm run dev`: servidor local
-- `npx prisma migrate dev`: aplicar migraciones
+- `npx prisma migrate dev`: aplicar migraciones. En Prisma 7 no regenera el cliente: después corre `npx prisma generate` y reinicia `npm run dev`.
 - `npx prisma db seed`: cargar datos de ejemplo
 - `npm test`: tests
