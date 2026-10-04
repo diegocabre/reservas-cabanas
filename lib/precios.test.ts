@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  agruparNoches,
   calcularAbono,
   calcularPrecio,
   MinimoNochesError,
@@ -137,6 +138,16 @@ describe("calcularPrecio", () => {
       // 14 dic baja + 15 dic alta: 2 noches no alcanzan.
       expect(() => cotizar("2026-12-14", "2026-12-16")).toThrow(MinimoNochesError);
     });
+  });
+});
+
+describe("agruparNoches", () => {
+  it("agrupa noches seguidas de la misma temporada", () => {
+    const c = cotizar("2026-12-13", "2026-12-18");
+    expect(agruparNoches(c.detalle)).toEqual([
+      { temporada: "Baja", noches: 2, precioNoche: 75_000, subtotal: 150_000 },
+      { temporada: "Alta 2026-27", noches: 3, precioNoche: 120_000, subtotal: 360_000 },
+    ]);
   });
 });
 

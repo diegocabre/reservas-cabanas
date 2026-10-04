@@ -141,6 +141,28 @@ export function calcularPrecio(params: {
   };
 }
 
+export interface TramoCotizado {
+  temporada: string;
+  noches: number;
+  precioNoche: number;
+  subtotal: number;
+}
+
+/** Agrupa noches seguidas de la misma temporada y precio: "3 noches × $75.000". */
+export function agruparNoches(detalle: NocheCotizada[]): TramoCotizado[] {
+  const tramos: TramoCotizado[] = [];
+  for (const n of detalle) {
+    const ultimo = tramos.at(-1);
+    if (ultimo && ultimo.temporada === n.temporada && ultimo.precioNoche === n.precio) {
+      ultimo.noches += 1;
+      ultimo.subtotal += n.precio;
+    } else {
+      tramos.push({ temporada: n.temporada, noches: 1, precioNoche: n.precio, subtotal: n.precio });
+    }
+  }
+  return tramos;
+}
+
 /**
  * Precio "desde" para mostrar en la página pública: el menor precio por noche
  * entre las temporadas que aún no terminan (hasta > hoy). null si no queda ninguna.

@@ -28,6 +28,26 @@ export function hoyEnChile(ahora: Date = new Date()): string {
   }).format(ahora);
 }
 
+/** "2027-01-10" → "dom 10 ene" (para resúmenes compactos en el celular). */
+export function formatearFechaCorta(iso: string): string {
+  const fecha = new Date(`${iso}T00:00:00Z`);
+  const partes = new Intl.DateTimeFormat("es-CL", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })
+    .formatToParts(fecha)
+    .filter((p) => p.type !== "literal")
+    .map((p) => p.value.replace(".", ""));
+  return partes.join(" ");
+}
+
+/** Hora en Chile: 2026-10-04T18:05:00Z → "15:05" */
+export function formatearHora(fecha: Date): string {
+  return new Intl.DateTimeFormat("es-CL", {
+    timeZone: ZONA_HORARIA,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(fecha);
+}
+
 /** "2027-01-10" → "10 de enero de 2027" */
 export function formatearFechaLarga(iso: string): string {
   return new Intl.DateTimeFormat("es-CL", {
