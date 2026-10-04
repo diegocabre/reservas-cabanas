@@ -79,6 +79,8 @@ model Propiedad {
   nombre                String
   slug                  String   @unique
   ubicacion             String? // texto libre, ej. "Puerto Varas · Lago Llanquihue"
+  prefijoCodigo         String   @unique @default("RES") @map("prefijo_codigo") // códigos de reserva "LL-0001"
+  ultimoCorrelativo     Int      @default(0) @map("ultimo_correlativo") // último número de reserva usado
   whatsapp              String
   email                 String
   abonoPct              Int      @default(50) @map("abono_pct")
@@ -149,7 +151,7 @@ model Temporada {
 
 model Reserva {
   id              String        @id @default(uuid()) @db.Uuid
-  codigo          String        @unique // legible, ej. PV-0142
+  codigo          String        @unique // prefijo de la propiedad + correlativo, ej. LL-0001
   cabanaId        String        @map("cabana_id") @db.Uuid
   checkIn         DateTime      @map("check_in") @db.Date // inclusivo
   checkOut        DateTime      @map("check_out") @db.Date // EXCLUSIVO: ese día queda libre para otra llegada
@@ -158,7 +160,7 @@ model Reserva {
   huespedNombre   String        @map("huesped_nombre")
   huespedEmail    String        @map("huesped_email")
   huespedTelefono String        @map("huesped_telefono")
-  huespedRut      String?       @map("huesped_rut")
+  huespedRut      String?       @map("huesped_rut") // obligatorio en reservas web; puede faltar en las de Airbnb/Booking/manuales
   total           Int
   abono           Int
   estado          EstadoReserva @default(pendiente_pago)
