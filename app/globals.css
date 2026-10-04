@@ -56,6 +56,39 @@ body {
   );
 }
 
+/* Calendario de reserva (react-day-picker) con la paleta del sur.
+   ".rdp-root.calendario-reserva" para ganarle al CSS de la librería, que se carga después. */
+.rdp-root.calendario-reserva {
+  --rdp-accent-color: var(--lago);
+  --rdp-accent-background-color: rgb(29 74 90 / 0.12);
+  --rdp-today-color: var(--fuego);
+  --rdp-day-height: 44px;
+  --rdp-day-width: 44px;
+  --rdp-day_button-height: 42px;
+  --rdp-day_button-width: 42px;
+  --rdp-disabled-opacity: 0.35;
+  margin-inline: auto;
+  width: fit-content;
+}
+.calendario-reserva .rdp-caption_label {
+  font-family: var(--font-titulo);
+  font-size: 1.15rem;
+  text-transform: capitalize;
+}
+.calendario-reserva .rdp-weekday {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+.calendario-reserva .rdp-range_start .rdp-day_button,
+.calendario-reserva .rdp-range_end .rdp-day_button {
+  background: var(--lago);
+  color: var(--nieve);
+}
+/* Noches ocupadas: tachadas, para que se entienda por qué no se pueden elegir. */
+.calendario-reserva .dia-ocupado:not(.rdp-range_end) .rdp-day_button {
+  text-decoration: line-through;
+}
+
 /* Oculta la barra de scroll del carrusel sin quitar el desplazamiento. */
 .sin-scrollbar {
   scrollbar-width: none;

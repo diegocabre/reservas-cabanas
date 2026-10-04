@@ -1,32 +1,45 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PerfilVolcan } from "@/components/perfil-volcan";
-import { obtenerCabanaPublica } from "@/lib/cabanas";
+import { IconoFlecha } from "@/components/iconos";
+import { FormularioReserva } from "@/components/reserva/formulario-reserva";
+import { obtenerDatosReserva } from "@/lib/reservas";
 
-// Provisoria: el calendario y el formulario llegan en la semana 2.
 export const metadata: Metadata = {
   title: "Reservar",
   robots: { index: false },
 };
 
+// Sin caché: la disponibilidad cambia con cada reserva.
 export default async function PaginaReservar({ params }: PageProps<"/reservar/[propiedad]/[cabana]">) {
   const { propiedad, cabana: slug } = await params;
-  const cabana = await obtenerCabanaPublica(propiedad, slug);
-  if (!cabana) notFound();
+  const datos = await obtenerDatosReserva(propiedad, slug);
+  if (!datos) notFound();
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-      <PerfilVolcan className="h-12 w-56" />
-      <p className="mt-6 text-xs font-bold tracking-[0.18em] text-madera uppercase">{cabana.propiedad.nombre}</p>
-      <h1 className="mt-2 font-display text-3xl font-semibold text-balance">{cabana.nombre}</h1>
-      <p className="mt-3 max-w-sm text-tinta-suave">Muy pronto podrás ver el calendario y reservar en línea desde aquí.</p>
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-10 md:px-6 md:pt-8">
       <Link
-        href={`/${cabana.propiedad.slug}/${cabana.slug}`}
-        className="mt-8 font-semibold text-lago underline decoration-lago/30 underline-offset-4 hover:decoration-lago"
+        href={`/${datos.propiedad.slug}/${datos.slug}`}
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-lago"
       >
+        <IconoFlecha className="size-4 rotate-180" />
         Volver a la cabaña
       </Link>
+
+      <header className="mt-4 mb-6 flex items-center gap-4">
+        {datos.fotos[0] && (
+          <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl md:size-20">
+            <Image src={datos.fotos[0]} alt="" fill sizes="80px" className="object-cover" />
+          </div>
+        )}
+        <div>
+          <p className="text-xs font-bold tracking-[0.18em] text-madera uppercase">{datos.propiedad.nombre}</p>
+          <h1 className="font-display text-2xl leading-tight font-semibold md:text-3xl">Reserva en {datos.nombre}</h1>
+        </div>
+      </header>
+
+      <FormularioReserva datos={datos} />
     </main>
   );
 }
