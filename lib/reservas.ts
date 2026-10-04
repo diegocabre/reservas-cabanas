@@ -65,6 +65,21 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
 
 export type DatosCalendario = NonNullable<Awaited<ReturnType<typeof obtenerDatosReserva>>>;
 
+type ClienteDb = Pick<typeof db, "reserva">;
+
+/**
+ * Pasa a `cancelada` las reservas `pendiente_pago` cuyo plazo para pagar venció.
+ * La usan el cron (todas las cabañas) y crearReservaWeb (una cabaña, dentro de su transacción).
+ * Devuelve cuántas reservas expiró.
+ */
+export async function expirarReservasVencidas(cliente: ClienteDb = db, ahora = new Date(), cabanaId?: string) {
+  const { count } = await cliente.reserva.updateMany({
+    where: { estado: "pendiente_pago", expiraEn: { lt: ahora }, ...(cabanaId ? { cabanaId } : {}) },
+    data: { estado: "cancelada" },
+  });
+  return count;
+}
+
 export type ResultadoReserva = { ok: true; codigo: string } | { ok: false; error: string };
 
 const FECHAS_TOMADAS = "Alguien acaba de reservar esas fechas. Por favor elige otras.";
@@ -117,10 +132,7 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
   try {
     const codigo = await db.$transaction(async (tx) => {
       // Las reservas pendientes que ya vencieron liberan sus fechas.
-      await tx.reserva.updateMany({
-        where: { cabanaId: cabana.id, estado: "pendiente_pago", expiraEn: { lt: ahora } },
-        data: { estado: "cancelada" },
-      });
+      await expirarReservasVencidas(tx, ahora, cabana.id);
 
       // Los bloqueos no están en la restricción de la base: se revisan aquí.
       const bloqueos = await tx.bloqueo.findMany({
@@ -194,7 +206,17 @@ export async function obtenerReservaPublica(codigo: string) {
           nombre: true,
           slug: true,
           fotos: true,
-          propiedad: { select: { nombre: true, slug: true, ubicacion: true, politicaCancelacion: true } },
+          propiedad: {
+            select: {
+              nombre: true,
+              slug: true,
+              ubicacion: true,
+              urlMapa: true,
+              whatsapp: true,
+              politicaCancelacion: true,
+              instruccionesLlegada: true,
+            },
+          },
         },
       },
     },
