@@ -13,7 +13,8 @@ Objetivo del MVP: que un huésped vea la disponibilidad, reserve, pague el abono
 - Prisma como ORM (conexión a Supabase con `DATABASE_URL` por pooler y `DIRECT_URL` para migraciones)
 - Zod para validar formularios en cliente y servidor
 - react-day-picker + date-fns (locale `es`) para el calendario
-- Más adelante: Mercado Pago Checkout Pro, Resend + React Email, node-ical / ical-generator, Vercel Cron
+- Más adelante: Mercado Pago Checkout Pro, Resend + React Email, Vercel Cron (solo para expirar reservas no pagadas)
+- Etapa 2, después del piloto (no instalar en el MVP): node-ical / ical-generator
 - Deploy en Vercel
 
 Usa las versiones estables actuales de cada librería y sigue su documentación oficial. No agregues dependencias fuera de esta lista sin preguntar.
@@ -47,7 +48,7 @@ Propiedad, Admin, Cabana, Temporada, Reserva, Pago, Bloqueo, CalendarioExterno.
 - **Reserva**: codigo legible único (ej. `PV-0142`), cabana_id, check_in, check_out, adultos, ninos, huesped_nombre, huesped_email, huesped_telefono, huesped_rut (opcional), total, abono (int), estado, origen, expira_en (opcional), notas, timestamps
 - **Pago**: reserva_id, proveedor (`mercadopago` | `flow` | `transferencia`), monto, estado (`pendiente` | `aprobado` | `rechazado`), ref_externa, pagado_en
 - **Bloqueo**: cabana_id, desde, hasta, motivo, origen (`manual` | `ical`), uid_externo (opcional)
-- **CalendarioExterno**: cabana_id, plataforma (`airbnb` | `booking`), url_ical, ultimo_sync
+- **CalendarioExterno** (etapa 2, sin usar en el MVP): cabana_id, plataforma (`airbnb` | `booking`), url_ical, ultimo_sync
 
 ### Restricción anti doble reserva (obligatoria)
 
@@ -76,7 +77,7 @@ app/
   reservar/[propiedad]/[cabana]/           fechas + datos del huésped (el slug de cabaña solo es único dentro de su propiedad)
   reserva/[codigo]/page.tsx                confirmación
   admin/                                   panel del dueño (protegido)
-  api/                                     webhooks e iCal
+  api/                                     webhooks (pagos) y cron; iCal en la etapa 2
 lib/
   db.ts            cliente Prisma
   precios.ts       cálculo de precio por temporada (funciones puras con tests)
@@ -100,6 +101,8 @@ prisma/
 ## Fuera de alcance (no construir aunque parezca útil)
 
 Chatbot o IA, WhatsApp Business API, boleta electrónica SII, multi-idioma, cupones, channel manager por API, registro automático de nuevas propiedades.
+
+Sincronización iCal e integración con Airbnb y Booking: etapa 2, después del piloto (plan actualizado el 4 de octubre de 2026). La tabla `CalendarioExterno` y el origen `ical` de `Bloqueo` ya existen, pero quedan sin usar. Mientras tanto, si la cabaña piloto también publica en esas plataformas, el dueño bloquea esas fechas a mano en el panel. El panel sí incluye reservas manuales (WhatsApp, teléfono) con origen `manual`.
 
 ## Comandos
 
