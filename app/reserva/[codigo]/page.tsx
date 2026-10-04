@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AvisoPrueba } from "@/components/aviso-prueba";
 import { PerfilVolcan } from "@/components/perfil-volcan";
+import { enModoPrueba } from "@/lib/sitio";
 import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
 import { nochesEntre } from "@/lib/precios";
 import { obtenerReservaPublica } from "@/lib/reservas";
@@ -29,8 +31,11 @@ export default async function PaginaReserva({ params }: PageProps<"/reserva/[cod
   const estado = reserva.vencida ? { texto: "Vencida", clase: "bg-tinta/10 text-tinta-suave" } : ESTADOS[reserva.estado];
   const personas = reserva.adultos + reserva.ninos;
 
+  const prueba = enModoPrueba() || reserva.prueba;
+
   return (
     <main className="mx-auto w-full max-w-xl flex-1 px-4 pt-8 pb-16">
+      {prueba && <AvisoPrueba className="mb-6" />}
       <div className="text-center">
         <PerfilVolcan className="mx-auto h-10 w-48" />
         <p className="mt-4 text-xs font-bold tracking-[0.18em] text-madera uppercase">Reserva {reserva.codigo}</p>
@@ -44,14 +49,26 @@ export default async function PaginaReserva({ params }: PageProps<"/reserva/[cod
 
       {reserva.estado === "pendiente_pago" && !reserva.vencida && reserva.expiraEn && (
         <div className="mt-6 rounded-3xl border border-madera/25 bg-madera-clara/15 p-5 text-center">
-          <p className="font-semibold">
-            Paga el abono de <strong>{formatearCLP(reserva.abono)}</strong> antes de las{" "}
-            <strong>{formatearHora(reserva.expiraEn)}</strong> para confirmar.
-          </p>
-          <p className="mt-1 text-sm text-tinta-suave">Después de esa hora las fechas se liberan para otros huéspedes.</p>
-          <p className="mt-4 rounded-2xl bg-nieve px-4 py-3 text-sm text-tinta-suave">
-            El pago en línea estará disponible muy pronto.
-          </p>
+          {prueba ? (
+            <>
+              <p className="font-semibold">Como es una reserva de prueba, no tienes que pagar nada.</p>
+              <p className="mt-1 text-sm text-tinta-suave">
+                En una reserva real tendrías hasta las <strong>{formatearHora(reserva.expiraEn)}</strong> para pagar el
+                abono de <strong>{formatearCLP(reserva.abono)}</strong>. Después de esa hora las fechas se liberan.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">
+                Paga el abono de <strong>{formatearCLP(reserva.abono)}</strong> antes de las{" "}
+                <strong>{formatearHora(reserva.expiraEn)}</strong> para confirmar.
+              </p>
+              <p className="mt-1 text-sm text-tinta-suave">Después de esa hora las fechas se liberan para otros huéspedes.</p>
+              <p className="mt-4 rounded-2xl bg-nieve px-4 py-3 text-sm text-tinta-suave">
+                El pago en línea estará disponible muy pronto.
+              </p>
+            </>
+          )}
         </div>
       )}
 

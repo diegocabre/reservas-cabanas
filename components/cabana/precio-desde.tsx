@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EtiquetaPrueba } from "@/components/aviso-prueba";
 import { IconoFlecha } from "@/components/iconos";
 import { formatearCLP } from "@/lib/formato";
 
@@ -15,14 +16,23 @@ export function PrecioDesde({ precio }: { precio: number | null }) {
   );
 }
 
-export function BotonDisponibilidad({ href, className = "" }: { href: string; className?: string }) {
+export function BotonDisponibilidad({
+  href,
+  prueba = false,
+  className = "",
+}: {
+  href: string;
+  prueba?: boolean;
+  className?: string;
+}) {
   return (
     <Link
       href={href}
-      className={`inline-flex items-center justify-center gap-2 rounded-full bg-fuego px-6 py-3.5 font-bold text-nieve shadow-[0_6px_20px_-6px_var(--fuego)] transition-colors hover:bg-fuego-hondo focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fuego active:scale-[0.98] ${className}`}
+      className={`relative inline-flex items-center justify-center gap-2 rounded-full bg-fuego px-6 py-3.5 font-bold text-nieve shadow-[0_6px_20px_-6px_var(--fuego)] transition-colors hover:bg-fuego-hondo focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fuego active:scale-[0.98] ${className}`}
     >
       Ver disponibilidad
       <IconoFlecha className="size-4" />
+      {prueba && <EtiquetaPrueba />}
     </Link>
   );
 }

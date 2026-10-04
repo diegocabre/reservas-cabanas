@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AvisoPrueba } from "@/components/aviso-prueba";
 import { IconoFlecha } from "@/components/iconos";
+import { enModoPrueba } from "@/lib/sitio";
 import { FormularioReserva } from "@/components/reserva/formulario-reserva";
 import { obtenerDatosReserva } from "@/lib/reservas";
 
@@ -39,7 +41,9 @@ export default async function PaginaReservar({ params }: PageProps<"/reservar/[p
         </div>
       </header>
 
-      <FormularioReserva datos={datos} />
+      {enModoPrueba() && <AvisoPrueba className="mb-6" />}
+
+      <FormularioReserva datos={datos} modoPrueba={enModoPrueba()} />
     </main>
   );
 }

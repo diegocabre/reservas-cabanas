@@ -47,7 +47,7 @@ function cotizar(datos: DatosCalendario, checkIn: string, checkOut: string): Cot
   }
 }
 
-export function FormularioReserva({ datos }: { datos: DatosCalendario }) {
+export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendario; modoPrueba: boolean }) {
   const [estado, accion, enviando] = useActionState<EstadoFormulario, FormData>(crearReserva, {});
   const [fechas, setFechas] = useState<Fechas>(() => ({
     checkIn: estado.valores?.checkIn,
@@ -209,10 +209,12 @@ export function FormularioReserva({ datos }: { datos: DatosCalendario }) {
                 type="submit"
                 className="mt-1 rounded-full bg-fuego px-6 py-4 text-lg font-bold text-nieve shadow-[0_6px_20px_-6px_var(--fuego)] transition-colors hover:bg-fuego-hondo disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {enviando ? "Reservando…" : "Reservar"}
+                {enviando ? "Reservando…" : modoPrueba ? "Reservar (prueba)" : "Reservar"}
               </button>
               <p className="-mt-2 text-center text-xs text-tinta-suave">
-                Tus fechas quedan apartadas 30 minutos mientras pagas el abono.
+                {modoPrueba
+                  ? "Es una reserva de prueba: no se cobra nada y las fechas se liberan en 30 minutos."
+                  : "Tus fechas quedan apartadas 30 minutos mientras pagas el abono."}
               </p>
             </fieldset>
           </section>

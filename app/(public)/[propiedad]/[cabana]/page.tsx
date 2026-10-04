@@ -7,6 +7,7 @@ import { IconoCama, IconoFlecha, IconoHoja, IconoPersonas, IconoUbicacion } from
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { obtenerCabanaPublica } from "@/lib/cabanas";
 import { fotoParaCompartir } from "@/lib/fotos";
+import { enModoPrueba } from "@/lib/sitio";
 import { formatearCLP } from "@/lib/formato";
 
 // Cada cabaña se renderiza en su primera visita, queda en caché y se regenera cada 5 minutos
@@ -62,6 +63,7 @@ export default async function PaginaCabana({ params }: Props) {
   if (!cabana) notFound();
 
   const urlReserva = `/reservar/${cabana.propiedad.slug}/${cabana.slug}`;
+  const prueba = enModoPrueba();
 
   return (
     <main className="flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-20">
@@ -142,7 +144,7 @@ export default async function PaginaCabana({ params }: Props) {
         <aside className="hidden md:block">
           <div className="vetas sticky top-6 rounded-3xl border border-linea bg-nieve p-6 shadow-[0_20px_50px_-30px_var(--madera)]">
             <PrecioDesde precio={cabana.precioDesde} />
-            <BotonDisponibilidad href={urlReserva} className="mt-5 w-full" />
+            <BotonDisponibilidad href={urlReserva} prueba={prueba} className="mt-5 w-full" />
             <p className="mt-3 text-center text-xs text-tinta-suave">Reserva directa con la cabaña, sin comisiones.</p>
           </div>
         </aside>
@@ -152,7 +154,7 @@ export default async function PaginaCabana({ params }: Props) {
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-linea bg-nieve/95 px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md md:hidden">
         <div className="mx-auto flex max-w-xl items-center justify-between gap-4">
           <PrecioDesde precio={cabana.precioDesde} />
-          <BotonDisponibilidad href={urlReserva} className="shrink-0" />
+          <BotonDisponibilidad href={urlReserva} prueba={prueba} className="shrink-0" />
         </div>
       </div>
     </main>

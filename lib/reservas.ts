@@ -2,10 +2,14 @@ import { db } from "@/lib/db";
 import { MINUTOS_PARA_PAGAR, nochesOcupadas, reservaOcupa, validarEstadia } from "@/lib/disponibilidad";
 import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { hoyEnChile } from "@/lib/formato";
+import { enModoPrueba } from "@/lib/sitio";
 import { aFechaIso, calcularAbono, calcularPrecio, ErrorPrecio, type TemporadaPrecio } from "@/lib/precios";
 import type { DatosReserva } from "@/lib/reserva-esquema";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
+/** Prefijo en `notas` de las reservas hechas en modo prueba. */
+export const MARCA_PRUEBA = "[PRUEBA]";
 
 /** Cuántos meses hacia adelante se puede reservar. */
 export const MESES_RESERVABLES = 12;
@@ -154,7 +158,8 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
           estado: "pendiente_pago",
           origen: "web",
           expiraEn: new Date(ahora.getTime() + MINUTOS_PARA_PAGAR * 60_000),
-          notas: datos.notas || null,
+          // En modo prueba la reserva queda marcada, para poder identificarla y limpiarla después.
+          notas: enModoPrueba() ? [MARCA_PRUEBA, datos.notas].filter(Boolean).join(" ") : datos.notas || null,
         },
       });
       return codigo;
@@ -183,6 +188,7 @@ export async function obtenerReservaPublica(codigo: string) {
       abono: true,
       estado: true,
       expiraEn: true,
+      notas: true,
       cabana: {
         select: {
           nombre: true,
@@ -195,7 +201,7 @@ export async function obtenerReservaPublica(codigo: string) {
   });
   if (!reserva) return null;
 
-  const { huespedNombre, checkIn, checkOut, ...resto } = reserva;
+  const { huespedNombre, checkIn, checkOut, notas, ...resto } = reserva;
   // Solo nombre e inicial del apellido: el código es fácil de adivinar.
   const [nombre, apellido] = huespedNombre.split(/\s+/);
   return {
@@ -203,6 +209,7 @@ export async function obtenerReservaPublica(codigo: string) {
     checkIn: aFechaIso(checkIn),
     checkOut: aFechaIso(checkOut),
     huesped: apellido ? `${nombre} ${apellido[0]}.` : nombre,
+    prueba: notas?.startsWith(MARCA_PRUEBA) ?? false,
     vencida: reserva.estado === "pendiente_pago" && !reservaOcupa(reserva, new Date()),
   };
 }

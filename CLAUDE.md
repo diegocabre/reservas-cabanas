@@ -31,6 +31,7 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 - Código de reserva: `prefijo_codigo` de la propiedad + correlativo por propiedad con 4 dígitos (`LL-0001`). El correlativo se incrementa en la misma transacción que crea la reserva.
 - En reservas web el RUT del huésped es obligatorio (validado con dígito verificador). En la base es opcional porque las reservas de Airbnb, Booking o manuales pueden no traerlo.
 - La página `/reserva/[codigo]` no muestra email, teléfono ni RUT: los códigos son correlativos y fáciles de adivinar.
+- Modo prueba (`enModoPrueba()` en `lib/sitio.ts`): activado por defecto mientras no haya pago en línea. Muestra avisos de prueba en el botón de reserva, el formulario y la confirmación, y marca las reservas con `[PRUEBA]` en `notas`. Se desactiva con `RESERVAS_MODO_PRUEBA=false`.
 - Origen de reserva: `web`, `airbnb`, `booking`, `manual`.
 - La base es multi-propiedad desde el inicio: toda cabaña pertenece a una `Propiedad`, y toda consulta del panel filtra por la propiedad del admin.
 - RLS activado en todas las tablas; nuevas tablas también deben activarlo en su migración (`alter table "x" enable row level security;`, sin políticas). Toda lectura y escritura pasa por Prisma en el servidor, que se conecta como `postgres` (dueño de las tablas, con `BYPASSRLS`); la API pública de Supabase (`anon`, `authenticated`) no tiene acceso a nada. Incluye `_prisma_migrations`.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fotoParaCompartir } from "./fotos";
-import { urlDelSitio } from "./sitio";
+import { enModoPrueba, urlDelSitio } from "./sitio";
 
 describe("urlDelSitio", () => {
   it("prefiere NEXT_PUBLIC_SITE_URL", () => {
@@ -16,6 +16,14 @@ describe("urlDelSitio", () => {
 
   it("cae a localhost en desarrollo", () => {
     expect(urlDelSitio({}).origin).toBe("http://localhost:3000");
+  });
+});
+
+describe("enModoPrueba", () => {
+  it("está activado por defecto y solo se apaga con 'false'", () => {
+    expect(enModoPrueba({})).toBe(true);
+    expect(enModoPrueba({ RESERVAS_MODO_PRUEBA: "true" })).toBe(true);
+    expect(enModoPrueba({ RESERVAS_MODO_PRUEBA: "false" })).toBe(false);
   });
 });
 

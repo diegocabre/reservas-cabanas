@@ -1,4 +1,12 @@
 /**
+ * Modo prueba: mientras no haya pago en línea, las reservas se marcan como demostración.
+ * Activado por defecto; se desactiva con RESERVAS_MODO_PRUEBA=false (en Vercel, sin tocar código).
+ */
+export function enModoPrueba(env: Record<string, string | undefined> = process.env): boolean {
+  return env.RESERVAS_MODO_PRUEBA !== "false";
+}
+
+/**
  * URL base del sitio para metadata (canónica, Open Graph).
  * 1. NEXT_PUBLIC_SITE_URL si está definida (dominio propio).
  * 2. VERCEL_PROJECT_PRODUCTION_URL, que Vercel entrega sola (sin protocolo).
