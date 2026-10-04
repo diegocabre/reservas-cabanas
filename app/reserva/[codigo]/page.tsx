@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AvisoPrueba } from "@/components/aviso-prueba";
+import { IconoWhatsapp } from "@/components/iconos";
+import { enlaceWhatsapp, mensajeReserva } from "@/lib/whatsapp";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { enModoPrueba } from "@/lib/sitio";
 import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
@@ -32,6 +34,11 @@ export default async function PaginaReserva({ params }: PageProps<"/reserva/[cod
   const personas = reserva.adultos + reserva.ninos;
 
   const prueba = enModoPrueba() || reserva.prueba;
+  const nombre = reserva.huesped.split(" ")[0];
+  const whatsapp = enlaceWhatsapp(
+    cabana.propiedad.whatsapp,
+    mensajeReserva({ codigo: reserva.codigo, cabana: cabana.nombre, checkIn: reserva.checkIn, checkOut: reserva.checkOut, nombre }),
+  );
 
   return (
     <main className="mx-auto w-full max-w-xl flex-1 px-4 pt-8 pb-16">
@@ -41,7 +48,7 @@ export default async function PaginaReserva({ params }: PageProps<"/reserva/[cod
         <p className="mt-4 text-xs font-bold tracking-[0.18em] text-madera uppercase">Reserva {reserva.codigo}</p>
         <h1 className="mt-1 font-display text-3xl font-semibold text-balance">
           {reserva.estado === "pendiente_pago" && !reserva.vencida
-            ? `¡Listo, ${reserva.huesped.split(" ")[0]}! Tus fechas están apartadas`
+            ? `¡Listo, ${nombre}! Tus fechas están apartadas`
             : `Reserva de ${reserva.huesped}`}
         </h1>
         <span className={`mt-3 inline-block rounded-full px-3 py-1 text-sm font-bold ${estado.clase}`}>{estado.texto}</span>
@@ -124,6 +131,37 @@ export default async function PaginaReserva({ params }: PageProps<"/reserva/[cod
             </p>
           </div>
         </div>
+      </section>
+
+      {whatsapp && reserva.estado !== "cancelada" && !reserva.vencida && (
+        <a
+          href={whatsapp}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-6 flex items-center justify-center gap-2 rounded-full bg-musgo px-6 py-3.5 font-bold text-nieve transition-opacity hover:opacity-90"
+        >
+          <IconoWhatsapp className="size-5" />
+          Escribir por WhatsApp
+        </a>
+      )}
+
+      <section className="mt-6 px-1 text-sm text-tinta-suave">
+        <h2 className="font-semibold text-tinta">Instrucciones de llegada</h2>
+        {reserva.estado === "confirmada" && cabana.propiedad.instruccionesLlegada ? (
+          <p className="mt-1 whitespace-pre-line">{cabana.propiedad.instruccionesLlegada}</p>
+        ) : (
+          <p className="mt-1">Las verás aquí cuando se confirme el pago del abono.</p>
+        )}
+        {cabana.propiedad.urlMapa && (
+          <a
+            href={cabana.propiedad.urlMapa}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-block font-semibold text-lago underline decoration-lago/30 underline-offset-4"
+          >
+            Ver la ubicación en el mapa
+          </a>
+        )}
       </section>
 
       {cabana.propiedad.politicaCancelacion && (

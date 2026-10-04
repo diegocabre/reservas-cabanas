@@ -59,6 +59,16 @@ export function IconoUbicacion({ className }: Props) {
   );
 }
 
+/** Globo de chat (genérico, sin logo de marca). */
+export function IconoWhatsapp({ className }: Props) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4.5 19.5 5.6 16A8 8 0 1 1 8.4 18.6Z" />
+      <path d="M9.2 9.3c.3 1.8 1.7 3.4 3.6 4l.9-.9 1.6.7-.3 1.4c-2.8.1-5.8-2.6-6-5.6l1.3-.4.7 1.5Z" />
+    </svg>
+  );
+}
+
 export function IconoFlecha({ className }: Props) {
   return (
     <svg {...base} className={className}>
