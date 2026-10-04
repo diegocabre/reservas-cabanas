@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { Galeria } from "@/components/cabana/galeria";
 import { BotonDisponibilidad, PrecioDesde } from "@/components/cabana/precio-desde";
 import Link from "next/link";
-import { IconoCama, IconoFlecha, IconoHoja, IconoPersonas, IconoUbicacion } from "@/components/iconos";
+import { IconoCama, IconoFlecha, IconoHoja, IconoPersonas } from "@/components/iconos";
 import { PerfilVolcan } from "@/components/perfil-volcan";
+import { Ubicacion } from "@/components/ubicacion";
 import { obtenerCabanaPublica } from "@/lib/cabanas";
 import { fotoParaCompartir } from "@/lib/fotos";
 import { enModoPrueba } from "@/lib/sitio";
@@ -81,12 +82,7 @@ export default async function PaginaCabana({ params }: Props) {
       <div className="mx-auto max-w-6xl px-5 pt-6 md:grid md:grid-cols-[1fr_20rem] md:gap-14 md:px-6 md:pt-10">
         <article>
           <p className="text-xs font-bold tracking-[0.18em] text-madera uppercase">{cabana.propiedad.nombre}</p>
-          {cabana.propiedad.ubicacion && (
-            <p className="mt-1 flex items-center gap-1 text-sm text-tinta-suave">
-              <IconoUbicacion className="size-4 shrink-0 text-madera" />
-              {cabana.propiedad.ubicacion}
-            </p>
-          )}
+          <Ubicacion texto={cabana.propiedad.ubicacion} urlMapa={cabana.propiedad.urlMapa} className="mt-1" />
           <h1 className="mt-2 font-display text-[2.1rem] leading-[1.05] font-semibold text-balance text-tinta md:text-5xl">
             {cabana.nombre}
           </h1>

@@ -79,6 +79,7 @@ model Propiedad {
   nombre                String
   slug                  String   @unique
   ubicacion             String? // texto libre, ej. "Puerto Varas · Lago Llanquihue"
+  urlMapa               String?  @map("url_mapa") // link de Google Maps a la propiedad
   prefijoCodigo         String   @unique @default("RES") @map("prefijo_codigo") // códigos de reserva "LL-0001"
   ultimoCorrelativo     Int      @default(0) @map("ultimo_correlativo") // último número de reserva usado
   whatsapp              String

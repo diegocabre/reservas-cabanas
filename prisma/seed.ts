@@ -74,7 +74,10 @@ async function main() {
     nombre: "Cabañas Lago Llanquihue",
     ubicacion: "Puerto Varas · Lago Llanquihue",
     prefijoCodigo: "LL",
-    whatsapp: "+56912345678",
+    // Ejemplo: búsqueda de Puerto Varas. La cabaña piloto pondrá el link exacto de su ubicación.
+    urlMapa: "https://www.google.com/maps/search/?api=1&query=Puerto+Varas%2C+Los+Lagos%2C+Chile",
+    // WhatsApp de Soluciones DyS para la demo (nunca un número inventado: podría ser de una persona real).
+    whatsapp: "+56947637541",
     email: "contacto@example.com",
     abonoPct: 50,
     politicaCancelacion:

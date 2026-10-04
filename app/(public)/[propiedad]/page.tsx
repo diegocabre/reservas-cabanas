@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TarjetaCabana } from "@/components/cabana/tarjeta-cabana";
-import { IconoUbicacion } from "@/components/iconos";
 import { PerfilVolcan } from "@/components/perfil-volcan";
+import { Ubicacion } from "@/components/ubicacion";
 import { obtenerPropiedadPublica } from "@/lib/cabanas";
 import { fotoParaCompartir } from "@/lib/fotos";
 import { formatearCLP } from "@/lib/formato";
@@ -72,12 +72,11 @@ export default async function PaginaPropiedad({ params }: Props) {
         <h1 className="mt-5 font-display text-[2.4rem] leading-[1.05] font-semibold text-balance text-tinta md:text-6xl">
           {propiedad.nombre}
         </h1>
-        {propiedad.ubicacion && (
-          <p className="mt-3 flex items-center justify-center gap-1.5 text-tinta-suave">
-            <IconoUbicacion className="size-4 shrink-0 text-madera" />
-            {propiedad.ubicacion}
-          </p>
-        )}
+        <Ubicacion
+          texto={propiedad.ubicacion}
+          urlMapa={propiedad.urlMapa}
+          className="mt-3 justify-center text-base"
+        />
       </header>
 
       <section aria-label="Cabañas" className="mx-auto max-w-6xl px-5 md:px-6">
