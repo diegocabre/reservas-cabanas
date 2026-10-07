@@ -201,6 +201,7 @@ export async function obtenerReservaPublica(codigo: string) {
       estado: true,
       expiraEn: true,
       notas: true,
+      pagos: { select: { estado: true } },
       cabana: {
         select: {
           nombre: true,
@@ -223,7 +224,7 @@ export async function obtenerReservaPublica(codigo: string) {
   });
   if (!reserva) return null;
 
-  const { huespedNombre, checkIn, checkOut, notas, ...resto } = reserva;
+  const { huespedNombre, checkIn, checkOut, notas, pagos, ...resto } = reserva;
   // Solo nombre e inicial del apellido: el código es fácil de adivinar.
   const [nombre, apellido] = huespedNombre.split(/\s+/);
   return {
@@ -232,6 +233,7 @@ export async function obtenerReservaPublica(codigo: string) {
     checkOut: aFechaIso(checkOut),
     huesped: apellido ? `${nombre} ${apellido[0]}.` : nombre,
     prueba: notas?.startsWith(MARCA_PRUEBA) ?? false,
+    pagoEnProceso: pagos.some((p) => p.estado === "pendiente"),
     vencida: reserva.estado === "pendiente_pago" && !reservaOcupa(reserva, new Date()),
   };
 }
