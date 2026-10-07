@@ -193,7 +193,8 @@ model Pago {
   reserva Reserva @relation(fields: [reservaId], references: [id])
 
   @@index([reservaId])
-  @@index([refExterna])
+  // Un pago externo (ej. id de pago de Mercado Pago) se registra una sola vez aunque el aviso llegue repetido.
+  @@unique([proveedor, refExterna])
   @@map("pago")
 }
 
