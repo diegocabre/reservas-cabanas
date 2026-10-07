@@ -9,7 +9,10 @@ import { PerfilVolcan } from "@/components/perfil-volcan";
 import { enModoPrueba } from "@/lib/sitio";
 import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
 import { nochesEntre } from "@/lib/precios";
+import { pagoEnLineaDisponible, registrarPagoMercadoPago } from "@/lib/mercadopago";
 import { obtenerReservaPublica } from "@/lib/reservas";
+import { pagarAbono } from "./acciones";
+import { BotonPagar } from "./boton-pagar";
 
 export const metadata: Metadata = {
   title: "Tu reserva",
@@ -23,10 +26,21 @@ const ESTADOS = {
   completada: { texto: "Completada", clase: "bg-lago/10 text-lago" },
 } as const;
 
-export default async function PaginaReserva({ params }: PageProps<"/reserva/[codigo]">) {
+export default async function PaginaReserva({ params, searchParams }: PageProps<"/reserva/[codigo]">) {
   const { codigo } = await params;
+  const consulta = await searchParams;
+
+  // Al volver de Mercado Pago llega el id del pago: se verifica contra su API antes de mostrar
+  // nada (el webhook hace lo mismo; registrar dos veces no tiene efecto).
+  const idPago = [consulta.payment_id, consulta.collection_id].flat().find((v) => v && /^\d+$/.test(v));
+  if (idPago && pagoEnLineaDisponible()) {
+    await registrarPagoMercadoPago(idPago).catch((e) => console.error("No se pudo verificar el pago", e));
+  }
+
   const reserva = await obtenerReservaPublica(decodeURIComponent(codigo).toUpperCase());
   if (!reserva) notFound();
+  const errorPago = consulta.error === "pago";
+  const pagoRechazado = consulta.status === "rejected" || consulta.collection_status === "rejected";
 
   const { cabana } = reserva;
   const noches = nochesEntre(reserva.checkIn, reserva.checkOut).length;
@@ -47,16 +61,49 @@ export default async function PaginaReserva({ params }: PageProps<"/reserva/[cod
         <PerfilVolcan className="mx-auto h-10 w-48" />
         <p className="mt-4 text-xs font-bold tracking-[0.18em] text-madera uppercase">Reserva {reserva.codigo}</p>
         <h1 className="mt-1 font-display text-3xl font-semibold text-balance">
-          {reserva.estado === "pendiente_pago" && !reserva.vencida
-            ? `¡Listo, ${nombre}! Tus fechas están apartadas`
-            : `Reserva de ${reserva.huesped}`}
+          {reserva.estado === "confirmada"
+            ? `¡Reserva confirmada, ${nombre}!`
+            : reserva.estado === "pendiente_pago" && !reserva.vencida
+              ? `¡Listo, ${nombre}! Tus fechas están apartadas`
+              : `Reserva de ${reserva.huesped}`}
         </h1>
         <span className={`mt-3 inline-block rounded-full px-3 py-1 text-sm font-bold ${estado.clase}`}>{estado.texto}</span>
       </div>
 
       {reserva.estado === "pendiente_pago" && !reserva.vencida && reserva.expiraEn && (
         <div className="mt-6 rounded-3xl border border-madera/25 bg-madera-clara/15 p-5 text-center">
-          {prueba ? (
+          {reserva.pagoEnProceso ? (
+            <>
+              <p className="font-semibold">Tu pago está en proceso.</p>
+              <p className="mt-1 text-sm text-tinta-suave">
+                Mercado Pago lo está revisando. Apenas se apruebe, tu reserva quedará confirmada en esta página.
+              </p>
+            </>
+          ) : pagoEnLineaDisponible() ? (
+            <>
+              <p className="font-semibold">
+                Paga el abono de <strong>{formatearCLP(reserva.abono)}</strong> antes de las{" "}
+                <strong>{formatearHora(reserva.expiraEn)}</strong> para confirmar.
+              </p>
+              <p className="mt-1 text-sm text-tinta-suave">Después de esa hora las fechas se liberan para otros huéspedes.</p>
+              {(errorPago || pagoRechazado) && (
+                <p role="alert" className="mt-4 rounded-2xl bg-fuego/10 px-4 py-3 text-sm font-semibold text-fuego-hondo">
+                  {pagoRechazado
+                    ? "El pago fue rechazado. Puedes intentarlo de nuevo con otro medio de pago."
+                    : "No pudimos abrir el pago. Intenta de nuevo en unos segundos."}
+                </p>
+              )}
+              <form action={pagarAbono} className="mt-4">
+                <input type="hidden" name="codigo" value={reserva.codigo} />
+                <BotonPagar abono={formatearCLP(reserva.abono)} prueba={prueba} />
+              </form>
+              <p className="mt-3 text-xs text-tinta-suave">
+                {prueba
+                  ? "Pago de prueba en Mercado Pago: usa una tarjeta de prueba. No se cobra dinero real."
+                  : "Pagas en Mercado Pago con tarjeta de crédito o débito."}
+              </p>
+            </>
+          ) : prueba ? (
             <>
               <p className="font-semibold">Como es una reserva de prueba, no tienes que pagar nada.</p>
               <p className="mt-1 text-sm text-tinta-suave">
@@ -71,11 +118,18 @@ export default async function PaginaReserva({ params }: PageProps<"/reserva/[cod
                 <strong>{formatearHora(reserva.expiraEn)}</strong> para confirmar.
               </p>
               <p className="mt-1 text-sm text-tinta-suave">Después de esa hora las fechas se liberan para otros huéspedes.</p>
-              <p className="mt-4 rounded-2xl bg-nieve px-4 py-3 text-sm text-tinta-suave">
-                El pago en línea estará disponible muy pronto.
-              </p>
             </>
           )}
+        </div>
+      )}
+
+      {reserva.estado === "confirmada" && (
+        <div className="mt-6 rounded-3xl border border-musgo/30 bg-musgo/10 p-5 text-center">
+          <p className="font-semibold text-musgo">Recibimos el abono de {formatearCLP(reserva.abono)}.</p>
+          <p className="mt-1 text-sm text-tinta-suave">
+            Tus fechas están reservadas. El saldo de {formatearCLP(reserva.total - reserva.abono)} se paga directo a la
+            cabaña.
+          </p>
         </div>
       )}
 
