@@ -1,5 +1,7 @@
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago";
+import { after } from "next/server";
 import { db } from "@/lib/db";
+import { enviarEmailsReservaConfirmada } from "@/lib/emails";
 import { reservaOcupa } from "@/lib/disponibilidad";
 import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { armarPreferencia, evaluarPago } from "@/lib/pagos";
@@ -113,6 +115,9 @@ export async function registrarPagoMercadoPago(paymentId: string): Promise<Resul
   // si mientras tanto otra reserva tomó esas fechas, Postgres lo impide y queda para revisión.
   try {
     await db.reserva.update({ where: { id: reserva.id }, data: { estado: "confirmada", expiraEn: null } });
+    // Solo aquí la reserva pasa a confirmada, así que el email sale una sola vez.
+    // after(): se envía después de responder, sin demorar la página ni el webhook.
+    after(() => enviarEmailsReservaConfirmada(reserva.codigo));
     return "confirmada";
   } catch (e) {
     if (codigoPostgres(e) !== TRASLAPE_RESERVA) throw e;
