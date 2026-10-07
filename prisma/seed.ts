@@ -78,7 +78,7 @@ async function main() {
     urlMapa: "https://www.google.com/maps/search/?api=1&query=Puerto+Varas%2C+Los+Lagos%2C+Chile",
     // WhatsApp de Soluciones DyS para la demo (nunca un número inventado: podría ser de una persona real).
     whatsapp: "+56947637541",
-    email: "contacto@example.com",
+    email: "contacto@solucionesdys.cl", // recibe el aviso de cada reserva confirmada y las respuestas de los huéspedes
     abonoPct: 50,
     politicaCancelacion:
       "Cancelación sin costo hasta 15 días antes de la llegada (se devuelve el abono). Con menos de 15 días, el abono no es reembolsable.",
