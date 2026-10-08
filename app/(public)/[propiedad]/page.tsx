@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TarjetaCabana } from "@/components/cabana/tarjeta-cabana";
+import { EnlaceMiReserva } from "@/components/enlace-mi-reserva";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { Ubicacion } from "@/components/ubicacion";
 import { obtenerPropiedadPublica } from "@/lib/cabanas";
@@ -91,6 +92,7 @@ export default async function PaginaPropiedad({ params }: Props) {
             ))}
           </ul>
         )}
+        <EnlaceMiReserva className="mt-10 text-center" />
       </section>
     </main>
   );

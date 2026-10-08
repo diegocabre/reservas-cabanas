@@ -102,6 +102,14 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
                   ? "Pago de prueba en Mercado Pago: usa una tarjeta de prueba. No se cobra dinero real."
                   : "Pagas en Mercado Pago con tarjeta de crédito o débito."}
               </p>
+              <p className="mt-3 rounded-2xl bg-nieve px-4 py-3 text-sm text-tinta-suave">
+                Te enviamos este enlace a <strong className="text-tinta">{reserva.emailOculto}</strong>. Si cierras esta
+                página, búscalo en tu email o en{" "}
+                <Link href="/mi-reserva" className="font-semibold text-lago underline underline-offset-4">
+                  Buscar mi reserva
+                </Link>{" "}
+                con tu código <strong className="text-tinta">{reserva.codigo}</strong>.
+              </p>
             </>
           ) : prueba ? (
             <>

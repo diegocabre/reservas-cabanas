@@ -4,6 +4,7 @@ import { Galeria } from "@/components/cabana/galeria";
 import { BotonDisponibilidad, PrecioDesde } from "@/components/cabana/precio-desde";
 import Link from "next/link";
 import { IconoCama, IconoFlecha, IconoHoja, IconoPersonas } from "@/components/iconos";
+import { EnlaceMiReserva } from "@/components/enlace-mi-reserva";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { Ubicacion } from "@/components/ubicacion";
 import { obtenerCabanaPublica } from "@/lib/cabanas";
@@ -134,6 +135,7 @@ export default async function PaginaCabana({ params }: Props) {
               </p>
             </section>
           )}
+          <EnlaceMiReserva className="mt-10" />
         </article>
 
         {/* Escritorio: tarjeta lateral fija al hacer scroll. */}
