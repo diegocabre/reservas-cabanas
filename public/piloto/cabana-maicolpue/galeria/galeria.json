@@ -1,0 +1,9 @@
+{"cabana":"maicolpue","items":[
+{"orden":1,"tipo":"video","archivo":"01-sala-comedor.mp4","poster":"01-sala-comedor-poster.jpg","alt":"Sala comedor con ventanal al bosque","portada":true},
+{"orden":2,"tipo":"video","archivo":"02-cocina.mp4","poster":"02-cocina-poster.jpg","alt":"Cocina equipada con cocina a gas"},
+{"orden":3,"tipo":"foto","archivo":"03-dormitorio-piso2-camas.jpg","alt":"Dormitorio del segundo piso con tres camas"},
+{"orden":4,"tipo":"foto","archivo":"04-habitacion-simple-piso1.jpg","alt":"Habitación simple del primer piso"},
+{"orden":5,"tipo":"foto","archivo":"05-dormitorio-piso2-ventana.jpg","alt":"Dormitorio del segundo piso con dos camas y ventana"},
+{"orden":6,"tipo":"video","archivo":"06-habitacion-matrimonial.mp4","poster":"06-habitacion-matrimonial-poster.jpg","alt":"Habitación matrimonial del primer piso"},
+{"orden":7,"tipo":"video","archivo":"07-habitacion-simple.mp4","poster":"07-habitacion-simple-poster.jpg","alt":"Recorrido por la habitación simple"}
+]}

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { AvisoPendientes, BloqueoPublicacion } from "@/components/aviso-prueba";
 import { TarjetaCabana } from "@/components/cabana/tarjeta-cabana";
 import { EnlaceMiReserva } from "@/components/enlace-mi-reserva";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { Ubicacion } from "@/components/ubicacion";
 import { obtenerPropiedadPublica } from "@/lib/cabanas";
-import { fotoParaCompartir } from "@/lib/fotos";
+import { imagenParaCompartir } from "@/lib/fotos";
 import { formatearCLP } from "@/lib/formato";
+import { enModoPrueba } from "@/lib/sitio";
 
 // Igual que la página de la cabaña: se genera en la primera visita y se regenera cada 5 minutos.
 export const revalidate = 300;
@@ -40,13 +42,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .concat(". Reserva directa.");
   const ruta = `/${propiedad.slug}`;
   const portada = propiedad.cabanas.find((c) => c.fotos[0])?.fotos[0];
-  const imagen = portada
-    ? [{ url: fotoParaCompartir(portada), width: 1200, height: 630, alt: propiedad.nombre }]
-    : undefined;
+  const imagen = portada ? [imagenParaCompartir(portada, propiedad.nombre)] : undefined;
 
   return {
     title: propiedad.nombre,
     description: descripcion,
+    ...(propiedad.bloqueo ? { robots: { index: false } } : {}),
     alternates: { canonical: ruta },
     openGraph: {
       type: "website",
@@ -81,7 +82,10 @@ export default async function PaginaPropiedad({ params }: Props) {
       </header>
 
       <section aria-label="Cabañas" className="mx-auto max-w-6xl px-5 md:px-6">
-        {propiedad.cabanas.length === 0 ? (
+        {enModoPrueba() && <AvisoPendientes pendientes={propiedad.pendientes} className="mx-auto mb-6 max-w-md" />}
+        {propiedad.bloqueo ? (
+          <BloqueoPublicacion mensaje={propiedad.bloqueo} className="mx-auto max-w-md" />
+        ) : propiedad.cabanas.length === 0 ? (
           <p className="text-center text-tinta-suave">Por ahora no hay cabañas publicadas.</p>
         ) : (
           <ul className={`mx-auto grid gap-6 ${columnas(propiedad.cabanas.length)}`}>

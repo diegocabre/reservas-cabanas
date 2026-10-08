@@ -5,6 +5,7 @@ import { enviarEmailsReservaConfirmada } from "@/lib/emails";
 import { reservaOcupa } from "@/lib/disponibilidad";
 import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { armarPreferencia, evaluarPago } from "@/lib/pagos";
+import { bloqueoPublicacion, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enModoPrueba, urlDelSitio } from "@/lib/sitio";
 
 // Por ahora una sola cuenta (variable de entorno). Con varias propiedades en producción, cada
@@ -32,15 +33,19 @@ export async function iniciarPagoAbono(codigo: string): Promise<ResultadoInicioP
       estado: true,
       expiraEn: true,
       huespedEmail: true,
-      cabana: { select: { nombre: true } },
+      cabana: { select: { nombre: true, propiedad: { select: SELECT_PUBLICACION } } },
     },
   });
   if (!reserva) return { ok: false, error: "No encontramos esa reserva." };
+  const bloqueo = bloqueoPublicacion(reserva.cabana.propiedad, enModoPrueba());
+  if (bloqueo) return { ok: false, error: bloqueo };
   if (reserva.estado !== "pendiente_pago") return { ok: false, error: "Esta reserva no tiene un pago pendiente." };
   if (!reserva.expiraEn || !reservaOcupa(reserva, new Date())) {
     return { ok: false, error: "El plazo para pagar el abono terminó y las fechas se liberaron." };
   }
 
+  // Se cobra el abono guardado en la reserva, calculado al crearla con calcularAbono (lib/precios.ts).
+  // El webhook confirma solo si se pagó exactamente ese monto (evaluarPago).
   const preferencia = await new Preference(cliente()).create({
     body: armarPreferencia({
       codigo: reserva.codigo,

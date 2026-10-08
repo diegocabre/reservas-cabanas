@@ -36,4 +36,10 @@ describe("fotoParaCompartir", () => {
   it("deja intactas las fotos de otros hosts", () => {
     expect(fotoParaCompartir("https://cdn.example.com/a.jpg?x=1")).toBe("https://cdn.example.com/a.jpg?x=1");
   });
+
+  it("deja intactas las rutas locales de public/ (Next las completa con metadataBase)", () => {
+    expect(fotoParaCompartir("/piloto/cabana-maicolpue/galeria/01-sala-comedor-poster.jpg")).toBe(
+      "/piloto/cabana-maicolpue/galeria/01-sala-comedor-poster.jpg",
+    );
+  });
 });

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { EtiquetaDemo } from "@/components/aviso-prueba";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { IconoCama, IconoFlecha, IconoPersonas } from "@/components/iconos";
 import { formatearCLP } from "@/lib/formato";
@@ -36,6 +37,7 @@ export function TarjetaCabana({ cabana, href, destacada = false }: Props) {
             <PerfilVolcan className="w-2/3" />
           </div>
         )}
+        {cabana.demo && <EtiquetaDemo className="absolute top-3 left-3" />}
       </div>
 
       <div className="vetas p-5">

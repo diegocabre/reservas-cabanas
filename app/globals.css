@@ -96,3 +96,8 @@ body {
 .sin-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Salidas antes de la estadía mínima: se ven tenues; al tocarlas se avisa el mínimo. */
+.calendario-reserva .dia-corto .rdp-day_button {
+  opacity: 0.4;
+}

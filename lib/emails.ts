@@ -3,7 +3,7 @@ import { ConfirmacionReserva, type DatosEmailConfirmacion } from "@/emails/confi
 import { ReservaApartada } from "@/emails/reserva-apartada";
 import { db } from "@/lib/db";
 import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
-import { aFechaIso, nochesEntre } from "@/lib/precios";
+import { aFechaIso, nochesEntre, saldoReserva } from "@/lib/precios";
 import { MARCA_PRUEBA } from "@/lib/reservas";
 import { urlDelSitio } from "@/lib/sitio";
 import { enlaceWhatsapp, mensajeReserva } from "@/lib/whatsapp";
@@ -146,14 +146,15 @@ export async function enviarEmailsReservaConfirmada(codigo: string): Promise<voi
       propiedad: propiedad.nombre,
       ubicacion: propiedad.ubicacion,
       cabana: cabana.nombre,
-      foto: cabana.fotos[0] ?? null,
+      // Ítem 1 de la galería (cabana.fotos[0]). Los emails necesitan URL absoluta.
+      foto: cabana.fotos[0] ? new URL(cabana.fotos[0], urlDelSitio()).toString() : null,
       llegada: formatearFechaLarga(checkIn),
       salida: formatearFechaLarga(checkOut),
       noches: nochesEntre(checkIn, checkOut).length,
       personas: r.adultos + r.ninos,
       total: formatearCLP(r.total),
       abono: formatearCLP(r.abono),
-      saldo: formatearCLP(r.total - r.abono),
+      saldo: formatearCLP(saldoReserva(r)),
       instruccionesLlegada: propiedad.instruccionesLlegada,
       politicaCancelacion: propiedad.politicaCancelacion,
       urlReserva: new URL(`/reserva/${r.codigo}`, urlDelSitio()).toString(),

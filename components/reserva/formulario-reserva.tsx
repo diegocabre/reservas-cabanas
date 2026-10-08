@@ -4,45 +4,30 @@ import { cloneElement, useActionState, useMemo, useState } from "react";
 import { crearReserva, type EstadoFormulario } from "@/app/reservar/[propiedad]/[cabana]/acciones";
 import { Calendario, type Fechas } from "@/components/reserva/calendario";
 import { formatearCLP, formatearFechaCorta } from "@/lib/formato";
-import {
-  agruparNoches,
-  calcularAbono,
-  calcularPrecio,
-  MinimoNochesError,
-  NocheSinTemporadaError,
-  TemporadasTraslapadasError,
-  type TramoCotizado,
-} from "@/lib/precios";
+import { calcularAbono, calcularPrecio, ErrorPrecio, SinTarifaError, TarifasTraslapadasError } from "@/lib/precios";
 import { esquemaReserva } from "@/lib/reserva-esquema";
 import type { DatosCalendario } from "@/lib/reservas";
 
 type Cotizacion =
-  | { ok: true; noches: number; tramos: TramoCotizado[]; total: number; abono: number }
+  | { ok: true; noches: number; personas: number; precioNoche: number; total: number; abono: number; saldo: number }
   | { ok: false; error: string };
 
-function cotizar(datos: DatosCalendario, checkIn: string, checkOut: string): Cotizacion {
+/** Cotiza con la misma función que usa el servidor; el servidor igual recalcula todo al reservar. */
+function cotizar(datos: DatosCalendario, checkIn: string, checkOut: string, personas: number): Cotizacion {
   try {
     const c = calcularPrecio({
-      cabana: { nombre: datos.nombre, minNoches: datos.minNoches },
-      temporadas: datos.temporadas,
+      cabana: { nombre: datos.nombre, minNoches: datos.minNoches, capacidad: datos.capacidad },
+      tarifas: datos.tarifas,
       checkIn,
       checkOut,
+      personas,
     });
-    return {
-      ok: true,
-      noches: c.noches,
-      tramos: agruparNoches(c.detalle),
-      total: c.total,
-      abono: calcularAbono(c.total, datos.propiedad.abonoPct),
-    };
+    return { ok: true, noches: c.noches, personas, precioNoche: c.precioNoche, total: c.total, ...calcularAbono(c.total, datos.propiedad.abonoPct) };
   } catch (e) {
-    if (e instanceof MinimoNochesError) return { ok: false, error: e.message };
-    if (e instanceof NocheSinTemporadaError) {
-      return { ok: false, error: `Todavía no hay precios para la noche del ${formatearFechaCorta(e.fecha)}. Prueba con otras fechas.` };
+    if (e instanceof SinTarifaError || e instanceof TarifasTraslapadasError) {
+      return { ok: false, error: "No pudimos calcular el precio para ese grupo. Escríbele a la cabaña para reservar." };
     }
-    if (e instanceof TemporadasTraslapadasError) {
-      return { ok: false, error: "No pudimos calcular el precio de esas fechas. Escríbele a la cabaña para reservar." };
-    }
+    if (e instanceof ErrorPrecio) return { ok: false, error: e.message };
     throw e;
   }
 }
@@ -58,8 +43,8 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
   const [erroresCliente, setErroresCliente] = useState<EstadoFormulario["errores"]>();
 
   const cotizacion = useMemo(
-    () => (fechas.checkIn && fechas.checkOut ? cotizar(datos, fechas.checkIn, fechas.checkOut) : null),
-    [datos, fechas],
+    () => (fechas.checkIn && fechas.checkOut ? cotizar(datos, fechas.checkIn, fechas.checkOut, adultos + ninos) : null),
+    [datos, fechas, adultos, ninos],
   );
   const listo = cotizacion?.ok === true;
   const errores = erroresCliente ?? estado.errores;
@@ -122,11 +107,12 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
                 ocupadas={datos.ocupadas}
                 hoy={datos.hoy}
                 ultimoDia={datos.ultimoDia}
+                minNoches={datos.minNoches}
                 onCambio={setFechas}
               />
             </div>
             <p className="mt-2 text-center text-xs text-tinta-suave">
-              <span className="line-through">15</span> = ocupado · Mínimo {datos.minNoches} noches (varía por temporada)
+              <span className="line-through">15</span> = ocupado · Estadía mínima: {datos.minNoches} noches
             </p>
             {errores?.checkIn && <p className="mt-2 text-center text-sm font-semibold text-fuego-hondo">{errores.checkIn[0]}</p>}
           </section>
@@ -173,7 +159,9 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
                   </select>
                 </Campo>
               </div>
-              <p className="-mt-2 text-xs text-tinta-suave">Máximo {datos.capacidad} personas en total.</p>
+              <p className="-mt-2 text-xs text-tinta-suave">
+                Mínimo 1 y máximo {datos.capacidad} personas en total. El precio por noche depende de cuántos vienen.
+              </p>
 
               <Campo etiqueta="Nombre y apellido" nombre="nombre" errores={errores}>
                 <input id="nombre" name="nombre" autoComplete="name" defaultValue={valor("nombre")} className={claseInput} />
@@ -235,7 +223,7 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
             <p className="leading-tight">
               <span className="font-display text-2xl font-semibold">{formatearCLP(cotizacion.total)}</span>
               <span className="block text-xs text-tinta-suave">
-                {cotizacion.noches} {cotizacion.noches === 1 ? "noche" : "noches"} · abono {formatearCLP(cotizacion.abono)}
+                {cotizacion.noches} noches · abono {formatearCLP(cotizacion.abono)}
               </span>
             </p>
           ) : (
@@ -311,17 +299,15 @@ function Resumen({ cotizacion, fechas, abonoPct }: { cotizacion: Cotizacion | nu
 
       {cotizacion?.ok && (
         <>
-          <ul className="mt-4 space-y-1.5 text-sm">
-            {cotizacion.tramos.map((t, i) => (
-              <li key={i} className="flex justify-between gap-3">
-                <span className="text-tinta-suave">
-                  {t.noches} {t.noches === 1 ? "noche" : "noches"} × {formatearCLP(t.precioNoche)}
-                  <span className="block text-xs">Temporada {t.temporada.toLowerCase()}</span>
-                </span>
-                <span>{formatearCLP(t.subtotal)}</span>
-              </li>
-            ))}
-          </ul>
+          <p className="mt-4 flex justify-between gap-3 text-sm">
+            <span className="text-tinta-suave">
+              {cotizacion.noches} noches × {formatearCLP(cotizacion.precioNoche)}
+              <span className="block text-xs">
+                {cotizacion.personas} {cotizacion.personas === 1 ? "persona" : "personas"}
+              </span>
+            </span>
+            <span>{formatearCLP(cotizacion.total)}</span>
+          </p>
           <div className="mt-4 space-y-1.5 border-t border-linea pt-4">
             <p className="flex justify-between font-display text-xl font-semibold">
               <span>Total</span>
@@ -333,7 +319,7 @@ function Resumen({ cotizacion, fechas, abonoPct }: { cotizacion: Cotizacion | nu
             </p>
             <p className="flex justify-between text-sm text-tinta-suave">
               <span>Saldo pendiente</span>
-              <span>{formatearCLP(cotizacion.total - cotizacion.abono)}</span>
+              <span>{formatearCLP(cotizacion.saldo)}</span>
             </p>
           </div>
         </>

@@ -25,8 +25,12 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 - Montos siempre como enteros en CLP. Nunca `float` ni `Decimal` para dinero.
 - Fechas de estadía (`check_in`, `check_out`) como `date`, no `timestamp`. El día de `check_out` queda libre para otra llegada.
 - Todos los rangos de fechas son semiabiertos `[desde, hasta)`: el último día es EXCLUSIVO. Aplica a `Reserva` (`check_in`, `check_out`), `Temporada` (`desde`, `hasta`) y `Bloqueo` (`desde`, `hasta`), igual que `DTEND` en iCal. Ej.: una temporada del 15 dic al 28 feb se guarda como `desde = 15-dic`, `hasta = 1-mar`. Siempre `hasta > desde`.
-- Noches = `check_out - check_in`. El precio se calcula noche por noche según la temporada que cubre cada noche.
-- Si alguna noche no está cubierta por una `Temporada`, el cálculo de precio (`lib/precios.ts`) debe fallar con un error claro que indique la cabaña y la fecha sin temporada. Nunca cobrar 0 por esa noche.
+- Noches = `check_out - check_in`. Personas = adultos + niños. Precios fijos todo el año en la tabla `Tarifa` (por cabaña, por NOCHE, no por persona): se usa la fila cuyo tramo de personas incluye al grupo y con el mayor `noches_desde` que alcance, y ese precio se cobra en TODAS las noches (piloto: 4 personas, 3 noches = 3 × $60.000). Sin valores de precio en el código: viven en la tabla (cargados por el seed).
+- Si no hay `Tarifa` para el grupo, el cálculo (`calcularPrecio` en `lib/precios.ts`) falla con un error claro que indica la cabaña, las personas y las noches. Nunca cobrar 0. Las temporadas (`Temporada`) ya no se usan en el cálculo; la tabla queda para la etapa 2.
+- Estadía mínima = `cabana.min_noches` (piloto: 2) y personas de 1 a `cabana.capacidad` (piloto: 8). Se valida en el navegador (calendario: "Estadía mínima: N noches") y en el servidor con la misma función `calcularPrecio`. El servidor siempre recalcula el total; nunca confía en el del navegador.
+- Abono = `calcularAbono(total, abono_pct)` en `lib/precios.ts` (`abono_pct` de la propiedad de la cabaña, redondeado al peso); saldo = total − abono, así abono + saldo = total siempre. La reserva guarda el abono calculado al crearla; Mercado Pago, el webhook, los emails y la página de la reserva usan ese valor y `saldoReserva()`.
+- Datos marcados `PENDIENTE` (valores de ejemplo mientras el dueño los confirma) en ubicación, WhatsApp, email, instrucciones de llegada o política de cancelación: la propiedad no se publica ni cobra fuera del modo prueba (`bloqueoPublicacion` en `lib/publicacion.ts`). En modo prueba se puede probar con un aviso.
+- Galerías con fotos y videos verticales en `public/piloto/<cabaña>/galeria/galeria.json`, registradas en `lib/galeria.ts`. El ítem 1 es la portada, la vista previa de WhatsApp (og:image) y la foto del email; el seed guarda las imágenes en orden en `cabana.fotos`.
 - Estados de reserva: `pendiente_pago`, `confirmada`, `cancelada`, `completada`.
 - Una reserva web nace en `pendiente_pago` con `expira_en = ahora + 30 min` (`MINUTOS_PARA_PAGAR` en `lib/disponibilidad.ts`). Las pendientes vencidas ya no ocupan fechas y se marcan `cancelada` antes de insertar una nueva reserva en esa cabaña.
 - Código de reserva: `prefijo_codigo` de la propiedad + 6 caracteres aleatorios sin caracteres confundibles (`LL-7K3QX9`, `lib/codigo.ts`), para que no se pueda adivinar. La unicidad la asegura el índice único de `codigo`; si choca, se reintenta con otro. Las primeras reservas de prueba conservan su código correlativo (`LL-0001`…); `ultimo_correlativo` quedó en desuso.
@@ -42,12 +46,13 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 
 ## Modelo de datos
 
-Propiedad, Admin, Cabana, Temporada, Reserva, Pago, Bloqueo, CalendarioExterno.
+Propiedad, Admin, Cabana, Tarifa, Temporada (sin uso), Reserva, Pago, Bloqueo, CalendarioExterno.
 
 - **Propiedad**: nombre, slug único, ubicacion, prefijo_codigo (único), ultimo_correlativo, whatsapp, email, abono_pct (default 50), politica_cancelacion, instrucciones_llegada
 - **Admin**: id (= id de usuario de Supabase Auth), propiedad_id, email, rol (`dueno` | `staff`)
-- **Cabana**: propiedad_id, nombre, slug (único por propiedad), capacidad, dormitorios, descripcion, servicios (text[]), fotos (text[]), min_noches, activa
-- **Temporada**: cabana_id, nombre, desde, hasta (date), precio_noche (int), min_noches (opcional)
+- **Cabana**: propiedad_id, nombre, slug (único por propiedad), capacidad, dormitorios, descripcion, servicios (text[]), fotos (text[]), min_noches, activa, demo (cabaña de demostración)
+- **Tarifa**: cabana_id, personas_desde, personas_hasta (inclusivos), noches_desde, precio_noche (int). Única por cabaña + personas_desde + noches_desde.
+- **Temporada** (sin uso desde el piloto, queda para la etapa 2): cabana_id, nombre, desde, hasta (date), precio_noche (int), min_noches (opcional)
 - **Reserva**: codigo legible único (ej. `PV-0142`), cabana_id, check_in, check_out, adultos, ninos, huesped_nombre, huesped_email, huesped_telefono, huesped_rut (opcional), total, abono (int), estado, origen, expira_en (opcional), notas, timestamps
 - **Pago**: reserva_id, proveedor (`mercadopago` | `flow` | `transferencia`), monto, estado (`pendiente` | `aprobado` | `rechazado`), ref_externa, pagado_en
 - **Bloqueo**: cabana_id, desde, hasta, motivo, origen (`manual` | `ical`), uid_externo (opcional)
@@ -83,7 +88,7 @@ app/
   api/                                     webhooks (pagos) y cron; iCal en la etapa 2
 lib/
   db.ts            cliente Prisma
-  precios.ts       cálculo de precio por temporada (funciones puras con tests)
+  precios.ts       cálculo de precio por tarifa y del abono (funciones puras con tests)
   disponibilidad.ts
   formato.ts       moneda CLP y fechas en es-CL
 prisma/

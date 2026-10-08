@@ -1,41 +1,39 @@
-// Cálculo de precio de una estadía, noche por noche, según temporada.
+// Cálculo de precio de una estadía con tarifas fijas todo el año (tabla Tarifa).
 //
 // Reglas (ver CLAUDE.md):
-// - Rangos semiabiertos [desde, hasta): check_out y temporada.hasta son EXCLUSIVOS.
-// - Noches = check_out - check_in. Cada noche se cobra con la temporada que la cubre.
-// - Si una noche no tiene temporada, falla con error claro. Nunca cobra 0.
+// - Noches = check_out - check_in (check_out EXCLUSIVO). Personas = adultos + niños.
+// - El precio por noche depende de las personas y del largo de la estadía: se usa la tarifa de la
+//   cabaña cuyo tramo de personas incluye al grupo y con el mayor noches_desde que alcance. Ese
+//   precio se cobra en TODAS las noches (4 personas, 3 noches = 3 × $60.000).
+// - Si no hay tarifa para ese grupo, falla con error claro. Nunca cobra 0.
+// - Estadía mínima y abono se leen por cabaña (min_noches; abono_pct de su propiedad).
 // - Montos en CLP como enteros.
 //
-// Funciones puras: no tocan la base. Reciben las temporadas ya cargadas.
+// Funciones puras: no tocan la base. Las usan igual el navegador (cotizar) y el servidor (cobrar).
 
 /** Fecha sin hora: "YYYY-MM-DD" o Date a medianoche UTC (como Prisma entrega @db.Date). */
 export type Fecha = string | Date;
 
-export interface TemporadaPrecio {
-  nombre: string;
-  desde: Fecha; // inclusivo
-  hasta: Fecha; // EXCLUSIVO
+export interface TarifaPrecio {
+  personasDesde: number; // inclusivo
+  personasHasta: number; // inclusivo
+  nochesDesde: number; // rige desde esta cantidad de noches
   precioNoche: number;
-  minNoches: number | null; // null = rige el mínimo de la cabaña
 }
 
 export interface CabanaPrecio {
   nombre: string;
+  /** Estadía mínima de la cabaña (cabana.min_noches). */
   minNoches: number;
-}
-
-export interface NocheCotizada {
-  fecha: string; // noche del día "YYYY-MM-DD"
-  temporada: string;
-  precio: number;
+  capacidad: number;
 }
 
 export interface Cotizacion {
   noches: number;
-  detalle: NocheCotizada[];
+  personas: number;
+  precioNoche: number;
   total: number;
-  /** Mínimo de noches exigido: el mayor entre las temporadas que toca la estadía. */
-  minNoches: number;
+  tarifa: TarifaPrecio;
 }
 
 export class ErrorPrecio extends Error {
@@ -47,33 +45,33 @@ export class ErrorPrecio extends Error {
 
 export class RangoInvalidoError extends ErrorPrecio {}
 
-export class NocheSinTemporadaError extends ErrorPrecio {
-  constructor(
-    readonly cabana: string,
-    readonly fecha: string,
-  ) {
-    super(`La cabaña "${cabana}" no tiene temporada configurada para la noche del ${fecha}. No se puede calcular el precio.`);
-  }
-}
-
-export class TemporadasTraslapadasError extends ErrorPrecio {
-  constructor(
-    readonly cabana: string,
-    readonly fecha: string,
-    readonly temporadas: string[],
-  ) {
-    super(
-      `La cabaña "${cabana}" tiene más de una temporada para la noche del ${fecha} (${temporadas.join(", ")}). Corrige las temporadas.`,
-    );
-  }
-}
-
 export class MinimoNochesError extends ErrorPrecio {
   constructor(
     readonly minNoches: number,
     readonly noches: number,
   ) {
-    super(`La estadía mínima para estas fechas es de ${minNoches} noches (elegiste ${noches}).`);
+    super(`Estadía mínima: ${minNoches} noches.`);
+  }
+}
+
+export class PersonasInvalidasError extends ErrorPrecio {}
+
+export class SinTarifaError extends ErrorPrecio {
+  constructor(
+    readonly cabana: string,
+    readonly personas: number,
+    readonly noches: number,
+  ) {
+    super(`La cabaña "${cabana}" no tiene tarifa para ${personas} ${personas === 1 ? "persona" : "personas"} y ${noches} noches. No se puede calcular el precio.`);
+  }
+}
+
+export class TarifasTraslapadasError extends ErrorPrecio {
+  constructor(
+    readonly cabana: string,
+    readonly personas: number,
+  ) {
+    super(`La cabaña "${cabana}" tiene más de una tarifa para ${personas} personas con el mismo mínimo de noches. Corrige las tarifas.`);
   }
 }
 
@@ -112,77 +110,59 @@ export function nochesEntre(checkIn: Fecha, checkOut: Fecha): string[] {
 
 export function calcularPrecio(params: {
   cabana: CabanaPrecio;
-  temporadas: TemporadaPrecio[];
+  tarifas: TarifaPrecio[];
   checkIn: Fecha;
   checkOut: Fecha;
+  personas: number;
 }): Cotizacion {
-  const { cabana, checkIn, checkOut } = params;
-  const temporadas = params.temporadas.map((t) => ({ ...t, desde: aFechaIso(t.desde), hasta: aFechaIso(t.hasta) }));
+  const { cabana, tarifas, personas } = params;
+  const noches = nochesEntre(params.checkIn, params.checkOut).length;
+  if (noches < cabana.minNoches) throw new MinimoNochesError(cabana.minNoches, noches);
 
-  let minNoches = cabana.minNoches;
-  const detalle = nochesEntre(checkIn, checkOut).map((fecha): NocheCotizada => {
-    const cubren = temporadas.filter((t) => t.desde <= fecha && fecha < t.hasta);
-    if (cubren.length === 0) throw new NocheSinTemporadaError(cabana.nombre, fecha);
-    if (cubren.length > 1) {
-      throw new TemporadasTraslapadasError(cabana.nombre, fecha, cubren.map((t) => t.nombre));
-    }
-    const [t] = cubren;
-    minNoches = Math.max(minNoches, t.minNoches ?? cabana.minNoches);
-    return { fecha, temporada: t.nombre, precio: t.precioNoche };
-  });
-
-  if (detalle.length < minNoches) throw new MinimoNochesError(minNoches, detalle.length);
-
-  return {
-    noches: detalle.length,
-    detalle,
-    total: detalle.reduce((suma, n) => suma + n.precio, 0),
-    minNoches,
-  };
-}
-
-export interface TramoCotizado {
-  temporada: string;
-  noches: number;
-  precioNoche: number;
-  subtotal: number;
-}
-
-/** Agrupa noches seguidas de la misma temporada y precio: "3 noches × $75.000". */
-export function agruparNoches(detalle: NocheCotizada[]): TramoCotizado[] {
-  const tramos: TramoCotizado[] = [];
-  for (const n of detalle) {
-    const ultimo = tramos.at(-1);
-    if (ultimo && ultimo.temporada === n.temporada && ultimo.precioNoche === n.precio) {
-      ultimo.noches += 1;
-      ultimo.subtotal += n.precio;
-    } else {
-      tramos.push({ temporada: n.temporada, noches: 1, precioNoche: n.precio, subtotal: n.precio });
-    }
+  if (!Number.isInteger(personas) || personas < 1) {
+    throw new PersonasInvalidasError("Debe venir al menos 1 persona.");
   }
-  return tramos;
+  if (personas > cabana.capacidad) {
+    throw new PersonasInvalidasError(`La cabaña es para un máximo de ${cabana.capacidad} personas.`);
+  }
+
+  const delGrupo = tarifas.filter((t) => t.personasDesde <= personas && personas <= t.personasHasta);
+  const nochesDesde = Math.max(...delGrupo.filter((t) => t.nochesDesde <= noches).map((t) => t.nochesDesde));
+  const aplican = delGrupo.filter((t) => t.nochesDesde === nochesDesde);
+  if (aplican.length === 0) throw new SinTarifaError(cabana.nombre, personas, noches);
+  if (aplican.length > 1) throw new TarifasTraslapadasError(cabana.nombre, personas);
+
+  const [tarifa] = aplican;
+  return { noches, personas, precioNoche: tarifa.precioNoche, total: noches * tarifa.precioNoche, tarifa };
+}
+
+/** Precio "desde" para la página pública: el menor precio por noche de la cabaña. null si no tiene tarifas. */
+export function precioDesde(tarifas: Pick<TarifaPrecio, "precioNoche">[]): number | null {
+  return tarifas.length ? Math.min(...tarifas.map((t) => t.precioNoche)) : null;
+}
+
+export interface Abono {
+  abono: number;
+  saldo: number;
 }
 
 /**
- * Precio "desde" para mostrar en la página pública: el menor precio por noche
- * entre las temporadas que aún no terminan (hasta > hoy). null si no queda ninguna.
+ * Abono a pagar online (porcentaje del total, redondeado al peso) y saldo que se paga en la cabaña.
+ * El saldo es lo que falta, así abono + saldo = total siempre, aunque el total sea impar.
+ * Es la única fuente del cálculo: formulario, reserva, Mercado Pago, webhook, emails y panel.
  */
-export function precioDesde(
-  temporadas: Pick<TemporadaPrecio, "hasta" | "precioNoche">[],
-  hoy: Fecha,
-): number | null {
-  const hoyIso = aFechaIso(hoy);
-  const vigentes = temporadas.filter((t) => aFechaIso(t.hasta) > hoyIso).map((t) => t.precioNoche);
-  return vigentes.length ? Math.min(...vigentes) : null;
-}
-
-/** Abono a pagar online: porcentaje del total, redondeado al peso. */
-export function calcularAbono(total: number, abonoPct: number): number {
+export function calcularAbono(total: number, abonoPct: number): Abono {
   if (!Number.isInteger(total) || total < 0) {
     throw new ErrorPrecio(`Total inválido: ${total}. Debe ser un entero en CLP.`);
   }
   if (!Number.isInteger(abonoPct) || abonoPct < 0 || abonoPct > 100) {
     throw new ErrorPrecio(`Porcentaje de abono inválido: ${abonoPct}. Debe ser un entero entre 0 y 100.`);
   }
-  return Math.round((total * abonoPct) / 100);
+  const abono = Math.round((total * abonoPct) / 100);
+  return { abono, saldo: total - abono };
+}
+
+/** Saldo de una reserva ya creada: total menos el abono que se le cobró al reservar. */
+export function saldoReserva(r: { total: number; abono: number }): number {
+  return r.total - r.abono;
 }

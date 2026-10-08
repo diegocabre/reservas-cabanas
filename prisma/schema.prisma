@@ -120,13 +120,15 @@ model Cabana {
   descripcion String   @default("")
   servicios   String[] @default([])
   fotos       String[] @default([])
-  minNoches   Int      @default(1) @map("min_noches")
+  minNoches   Int      @default(1) @map("min_noches") // estadía mínima de la cabaña
   activa      Boolean  @default(true)
+  demo        Boolean  @default(false) // cabaña de demostración (datos de ejemplo, no es un alojamiento real)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   propiedad           Propiedad           @relation(fields: [propiedadId], references: [id])
-  temporadas          Temporada[]
+  temporadas          Temporada[] // sin uso desde el piloto (precios fijos por Tarifa); queda para la etapa 2
+  tarifas             Tarifa[]
   reservas            Reserva[]
   bloqueos            Bloqueo[]
   calendariosExternos CalendarioExterno[]
@@ -148,6 +150,23 @@ model Temporada {
 
   @@index([cabanaId, desde])
   @@map("temporada")
+}
+
+// Precio por noche según cantidad de personas y largo de la estadía, fijo todo el año.
+// Para una estadía se usa la fila de la cabaña con personas_desde <= personas <= personas_hasta y el
+// mayor noches_desde <= noches; ese precio se cobra en TODAS las noches (ver lib/precios.ts).
+model Tarifa {
+  id            String @id @default(uuid()) @db.Uuid
+  cabanaId      String @map("cabana_id") @db.Uuid
+  personasDesde Int    @map("personas_desde") // inclusivo
+  personasHasta Int    @map("personas_hasta") // inclusivo
+  nochesDesde   Int    @map("noches_desde") // desde cuántas noches rige este precio
+  precioNoche   Int    @map("precio_noche")
+
+  cabana Cabana @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+
+  @@unique([cabanaId, personasDesde, nochesDesde])
+  @@map("tarifa")
 }
 
 model Reserva {

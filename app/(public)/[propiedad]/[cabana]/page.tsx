@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { AvisoPendientes, BloqueoPublicacion, EtiquetaDemo } from "@/components/aviso-prueba";
 import { Galeria } from "@/components/cabana/galeria";
 import { BotonDisponibilidad, PrecioDesde } from "@/components/cabana/precio-desde";
 import Link from "next/link";
@@ -8,12 +9,12 @@ import { EnlaceMiReserva } from "@/components/enlace-mi-reserva";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { Ubicacion } from "@/components/ubicacion";
 import { obtenerCabanaPublica } from "@/lib/cabanas";
-import { fotoParaCompartir } from "@/lib/fotos";
+import { imagenParaCompartir } from "@/lib/fotos";
 import { enModoPrueba } from "@/lib/sitio";
 import { formatearCLP } from "@/lib/formato";
 
 // Cada cabaña se renderiza en su primera visita, queda en caché y se regenera cada 5 minutos
-// (así el precio "desde" sigue a las temporadas vigentes y un peak desde Instagram no golpea la base).
+// (así el precio "desde" sigue a las tarifas y un peak desde Instagram no golpea la base).
 export const revalidate = 300;
 
 export function generateStaticParams() {
@@ -38,13 +39,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .join(" · ");
   const descripcion = `${resumen}. ${cabana.descripcion}`.slice(0, 200);
   const ruta = `/${cabana.propiedad.slug}/${cabana.slug}`;
-  const imagen = cabana.fotos[0]
-    ? [{ url: fotoParaCompartir(cabana.fotos[0]), width: 1200, height: 630, alt: cabana.nombre }]
-    : undefined;
+  // Vista previa en WhatsApp: la imagen del ítem 1 de la galería (foto o poster del video).
+  const portada = cabana.galeria[0];
+  const imagen = portada ? [imagenParaCompartir(portada.imagen, portada.alt)] : undefined;
 
   return {
     title: titulo,
     description: descripcion,
+    // Bloqueada por datos PENDIENTE: que no la indexen.
+    ...(cabana.bloqueo ? { robots: { index: false } } : {}),
     alternates: { canonical: ruta },
     openGraph: {
       type: "website",
@@ -70,7 +73,11 @@ export default async function PaginaCabana({ params }: Props) {
   return (
     <main className="flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-20">
       <div className="relative md:mx-auto md:max-w-6xl md:px-6 md:pt-6">
-        <Galeria fotos={cabana.fotos} nombre={cabana.nombre} />
+        <Galeria
+          medios={cabana.galeria}
+          nombre={cabana.nombre}
+          vertical={cabana.galeria.some((m) => m.tipo === "video")}
+        />
         <Link
           href={`/${cabana.propiedad.slug}`}
           className="absolute top-[calc(0.75rem+env(safe-area-inset-top))] left-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-nieve/90 px-3.5 py-2 text-sm font-semibold text-tinta shadow-sm backdrop-blur-sm transition-colors hover:bg-nieve md:top-9 md:left-9"
@@ -82,7 +89,10 @@ export default async function PaginaCabana({ params }: Props) {
 
       <div className="mx-auto max-w-6xl px-5 pt-6 md:grid md:grid-cols-[1fr_20rem] md:gap-14 md:px-6 md:pt-10">
         <article>
-          <p className="text-xs font-bold tracking-[0.18em] text-madera uppercase">{cabana.propiedad.nombre}</p>
+          {prueba && <AvisoPendientes pendientes={cabana.pendientes} className="mb-4" />}
+          <p className="text-xs font-bold tracking-[0.18em] text-madera uppercase">
+            {cabana.propiedad.nombre} {cabana.demo && <EtiquetaDemo className="ml-1 align-middle" />}
+          </p>
           <Ubicacion texto={cabana.propiedad.ubicacion} urlMapa={cabana.propiedad.urlMapa} className="mt-1" />
           <h1 className="mt-2 font-display text-[2.1rem] leading-[1.05] font-semibold text-balance text-tinta md:text-5xl">
             {cabana.nombre}
@@ -141,19 +151,29 @@ export default async function PaginaCabana({ params }: Props) {
         {/* Escritorio: tarjeta lateral fija al hacer scroll. */}
         <aside className="hidden md:block">
           <div className="vetas sticky top-6 rounded-3xl border border-linea bg-nieve p-6 shadow-[0_20px_50px_-30px_var(--madera)]">
-            <PrecioDesde precio={cabana.precioDesde} />
-            <BotonDisponibilidad href={urlReserva} prueba={prueba} className="mt-5 w-full" />
-            <p className="mt-3 text-center text-xs text-tinta-suave">Reserva directa con la cabaña, sin comisiones.</p>
+            {cabana.bloqueo ? (
+              <BloqueoPublicacion mensaje={cabana.bloqueo} className="border-0 p-0" />
+            ) : (
+              <>
+                <PrecioDesde precio={cabana.precioDesde} />
+                <BotonDisponibilidad href={urlReserva} prueba={prueba} className="mt-5 w-full" />
+                <p className="mt-3 text-center text-xs text-tinta-suave">Reserva directa con la cabaña, sin comisiones.</p>
+              </>
+            )}
           </div>
         </aside>
       </div>
 
       {/* Celular: barra fija abajo, respetando la barra de inicio del iPhone. */}
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-linea bg-nieve/95 px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md md:hidden">
-        <div className="mx-auto flex max-w-xl items-center justify-between gap-4">
-          <PrecioDesde precio={cabana.precioDesde} />
-          <BotonDisponibilidad href={urlReserva} prueba={prueba} className="shrink-0" />
-        </div>
+        {cabana.bloqueo ? (
+          <p className="mx-auto max-w-xl text-center text-sm text-tinta-suave">{cabana.bloqueo}</p>
+        ) : (
+          <div className="mx-auto flex max-w-xl items-center justify-between gap-4">
+            <PrecioDesde precio={cabana.precioDesde} />
+            <BotonDisponibilidad href={urlReserva} prueba={prueba} className="shrink-0" />
+          </div>
+        )}
       </div>
     </main>
   );

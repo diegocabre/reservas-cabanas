@@ -1,34 +1,25 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
+import { fotosDeGaleria, galeriaRegistrada } from "../lib/galeria";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 
-// Fecha `date` sin hora (medianoche UTC, que es como Prisma guarda @db.Date).
-const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
-
-type Tarifa = "alta" | "media" | "baja";
-
-// Rangos [desde, hasta): `hasta` es EXCLUSIVO. Tramos continuos desde el
-// 1 oct 2026 hasta el 1 mar 2028 (completa la temporada alta 2027-28),
-// sin huecos ni traslapes.
-const TRAMOS: { nombre: string; tarifa: Tarifa; desde: string; hasta: string }[] = [
-  { nombre: "Baja", tarifa: "baja", desde: "2026-10-01", hasta: "2026-12-15" },
-  { nombre: "Alta 2026-27", tarifa: "alta", desde: "2026-12-15", hasta: "2027-03-01" },
-  { nombre: "Media marzo", tarifa: "media", desde: "2027-03-01", hasta: "2027-04-01" },
-  { nombre: "Baja", tarifa: "baja", desde: "2027-04-01", hasta: "2027-09-17" },
-  { nombre: "Fiestas Patrias", tarifa: "media", desde: "2027-09-17", hasta: "2027-09-21" },
-  { nombre: "Baja", tarifa: "baja", desde: "2027-09-21", hasta: "2027-12-15" },
-  { nombre: "Alta 2027-28", tarifa: "alta", desde: "2027-12-15", hasta: "2028-03-01" },
+// Tarifas del piloto (Cabaña Maicolpue), por NOCHE y fijas todo el año. Las cabañas demo usan las mismas.
+// Desde 3 noches la tarifa menor rige para TODAS las noches (ver lib/precios.ts).
+const TARIFAS = [
+  { personasDesde: 1, personasHasta: 2, nochesDesde: 1, precioNoche: 65_000 },
+  { personasDesde: 1, personasHasta: 2, nochesDesde: 3, precioNoche: 50_000 },
+  { personasDesde: 3, personasHasta: 5, nochesDesde: 1, precioNoche: 75_000 },
+  { personasDesde: 3, personasHasta: 5, nochesDesde: 3, precioNoche: 60_000 },
+  { personasDesde: 6, personasHasta: 8, nochesDesde: 1, precioNoche: 85_000 },
+  { personasDesde: 6, personasHasta: 8, nochesDesde: 3, precioNoche: 70_000 },
 ];
 
 // Fotos de ejemplo de Unsplash (licencia libre). Se guardan a 1600 px; next/image las optimiza.
 const unsplash = (id: string) => `https://images.unsplash.com/photo-${id}?w=1600&q=80&auto=format&fit=crop`;
-
-// Mínimo de noches por temporada (null = rige el de la cabaña).
-const MIN_NOCHES: Record<Tarifa, number | null> = { alta: 3, media: null, baja: null };
 
 const CABANAS = [
   {
@@ -46,7 +37,6 @@ const CABANAS = [
       unsplash("1696940171680-bb5b601a540b"), // cabaña de madera a orillas del lago
       unsplash("1579280456137-aa527151d36d"), // volcán Osorno desde los Saltos del Petrohué
     ],
-    precios: { alta: 120_000, media: 95_000, baja: 75_000 },
   },
   {
     slug: "los-arrayanes",
@@ -65,7 +55,6 @@ const CABANAS = [
       unsplash("1633512424746-0cb5240e064d"), // tinaja de madera
       unsplash("1783731524380-a30815242b6d"), // lago Llanquihue con el Osorno al fondo
     ],
-    precios: { alta: 160_000, media: 130_000, baja: 100_000 },
   },
 ];
 
@@ -92,30 +81,78 @@ async function main() {
     create: { slug: "lago-llanquihue", ...propiedadDatos },
   });
 
-  for (const { precios, ...cabanaDatos } of CABANAS) {
+  for (const cabanaDatos of CABANAS) {
+    // Demo: datos de ejemplo. Estadía mínima 2 noches; las temporadas antiguas quedan en la base sin uso.
+    const datos = { ...cabanaDatos, minNoches: 2, demo: true };
     const cabana = await db.cabana.upsert({
       where: { propiedadId_slug: { propiedadId: propiedad.id, slug: cabanaDatos.slug } },
-      update: { ...cabanaDatos, minNoches: 2 },
-      create: { ...cabanaDatos, minNoches: 2, propiedadId: propiedad.id },
+      update: datos,
+      create: { ...datos, propiedadId: propiedad.id },
     });
-
-    // Las temporadas se recrean completas; las reservas no se tocan.
-    await db.temporada.deleteMany({ where: { cabanaId: cabana.id } });
-    await db.temporada.createMany({
-      data: TRAMOS.map((t) => ({
-        cabanaId: cabana.id,
-        nombre: t.nombre,
-        desde: d(t.desde),
-        hasta: d(t.hasta),
-        precioNoche: precios[t.tarifa],
-        minNoches: MIN_NOCHES[t.tarifa],
-      })),
-    });
-
-    console.log(`✔ ${cabana.nombre}: ${TRAMOS.length} temporadas`);
+    await cargarTarifas(cabana.id);
+    console.log(`✔ ${cabana.nombre} (demo): ${TARIFAS.length} tarifas`);
   }
 
   console.log(`✔ Propiedad "${propiedad.nombre}" lista`);
+
+  await cargarMaicolpue();
+}
+
+/** Las tarifas se recrean completas; las reservas no se tocan (guardan su total y abono). */
+async function cargarTarifas(cabanaId: string) {
+  await db.tarifa.deleteMany({ where: { cabanaId } });
+  await db.tarifa.createMany({ data: TARIFAS.map((t) => ({ ...t, cabanaId })) });
+}
+
+// Valores de ejemplo: todo lo marcado PENDIENTE lo confirma el dueño. Mientras quede alguno, la
+// cabaña no se publica ni cobra fuera del modo prueba (lib/publicacion.ts).
+async function cargarMaicolpue() {
+  const propiedadDatos = {
+    nombre: "Cabaña Maicolpue",
+    ubicacion: "Maicolpue · San Juan de la Costa (PENDIENTE)",
+    prefijoCodigo: "MA",
+    urlMapa: "https://www.google.com/maps/search/?api=1&query=Maicolpue%2C+San+Juan+de+la+Costa%2C+Chile",
+    // Nunca un número o email inventado: podría ser de una persona real.
+    whatsapp: "PENDIENTE",
+    email: "PENDIENTE",
+    abonoPct: 50,
+    politicaCancelacion:
+      "PENDIENTE: cancelación sin costo hasta 15 días antes de la llegada (se devuelve el abono). Con menos de 15 días, el abono no es reembolsable.",
+    instruccionesLlegada:
+      "PENDIENTE: check-in desde las 15:00 y check-out hasta las 11:00. La ubicación exacta y cómo llegar se envían por WhatsApp el día anterior.",
+  };
+  const propiedad = await db.propiedad.upsert({
+    where: { slug: "maicolpue" },
+    update: propiedadDatos,
+    create: { slug: "maicolpue", ...propiedadDatos },
+  });
+
+  const galeria = galeriaRegistrada("maicolpue", "maicolpue");
+  if (!galeria) throw new Error("Falta la galería de Maicolpue en lib/galeria.ts");
+
+  const cabanaDatos = {
+    nombre: "Cabaña Maicolpue",
+    capacidad: 8,
+    // Deducido de las fotos, por confirmar con el dueño: piso 1 matrimonial + simple; piso 2 uno con 3 camas + uno con 2.
+    dormitorios: 4,
+    descripcion:
+      "Cabaña de dos pisos para hasta 8 personas.\n\n" +
+      "Primer piso: sala comedor con ventanal al bosque, cocina equipada con cocina a gas, una habitación matrimonial y una habitación simple.\n" +
+      "Segundo piso: un dormitorio con tres camas y otro con dos camas.",
+    servicios: ["Cocina equipada", "Cocina a gas", "Sala comedor", "Ventanal al bosque"],
+    // Imágenes fijas de la galería en orden: la primera (poster del video 1) es la portada y la vista previa.
+    fotos: fotosDeGaleria(galeria),
+    minNoches: 2,
+    demo: false,
+  };
+  const cabana = await db.cabana.upsert({
+    where: { propiedadId_slug: { propiedadId: propiedad.id, slug: "maicolpue" } },
+    update: cabanaDatos,
+    create: { ...cabanaDatos, slug: "maicolpue", propiedadId: propiedad.id },
+  });
+  await cargarTarifas(cabana.id);
+  console.log(`✔ ${cabana.nombre}: ${TARIFAS.length} tarifas, ${galeria.length} medios en la galería`);
+  console.log(`✔ Propiedad "${propiedad.nombre}" lista (con datos PENDIENTE)`);
 }
 
 main()

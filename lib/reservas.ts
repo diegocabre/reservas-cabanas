@@ -4,7 +4,8 @@ import { generarCodigoReserva } from "@/lib/codigo";
 import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { hoyEnChile, ocultarEmail } from "@/lib/formato";
 import { enModoPrueba } from "@/lib/sitio";
-import { aFechaIso, calcularAbono, calcularPrecio, ErrorPrecio, type TemporadaPrecio } from "@/lib/precios";
+import { aFechaIso, calcularAbono, calcularPrecio, ErrorPrecio, type TarifaPrecio } from "@/lib/precios";
+import { bloqueoPublicacion, SELECT_PUBLICACION } from "@/lib/publicacion";
 import type { DatosReserva } from "@/lib/reserva-esquema";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -22,9 +23,11 @@ function sumarMeses(iso: string, meses: number): string {
   return aFechaIso(f);
 }
 
+const SELECT_TARIFA = { personasDesde: true, personasHasta: true, nochesDesde: true, precioNoche: true } as const;
+
 /**
- * Todo lo que necesita el calendario de reserva: cabaña, temporadas (para cotizar en el
- * navegador) y noches ocupadas desde hoy. Sin caché: la disponibilidad cambia con cada reserva.
+ * Todo lo que necesita el calendario de reserva: cabaña, tarifas (para cotizar en el
+ * navegador con la misma función que el servidor) y noches ocupadas desde hoy. Sin caché: la disponibilidad cambia con cada reserva.
  */
 export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: string) {
   const hoy = hoyEnChile();
@@ -37,8 +40,8 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
       capacidad: true,
       minNoches: true,
       fotos: true,
-      propiedad: { select: { nombre: true, slug: true, abonoPct: true, politicaCancelacion: true } },
-      temporadas: { select: { nombre: true, desde: true, hasta: true, precioNoche: true, minNoches: true } },
+      propiedad: { select: { nombre: true, slug: true, abonoPct: true, ...SELECT_PUBLICACION } },
+      tarifas: { select: SELECT_TARIFA },
       reservas: {
         where: { estado: { in: ["pendiente_pago", "confirmada"] }, checkOut: { gt: d(hoy) } },
         select: { checkIn: true, checkOut: true, estado: true, expiraEn: true },
@@ -48,7 +51,7 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
   });
   if (!cabana) return null;
 
-  const { temporadas, reservas, bloqueos, ...resto } = cabana;
+  const { reservas, bloqueos, propiedad, ...resto } = cabana;
   const ocupadas = nochesOcupadas([
     ...reservas.filter((r) => reservaOcupa(r, ahora)).map((r) => ({ desde: r.checkIn, hasta: r.checkOut })),
     ...bloqueos,
@@ -56,10 +59,11 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
 
   return {
     ...resto,
+    // Solo lo que el formulario muestra: las instrucciones de llegada no viajan al navegador.
+    propiedad: { nombre: propiedad.nombre, slug: propiedad.slug, abonoPct: propiedad.abonoPct },
     hoy,
     ultimoDia: sumarMeses(hoy, MESES_RESERVABLES),
-    // Fechas como texto para pasarlas al componente cliente.
-    temporadas: temporadas.map((t) => ({ ...t, desde: aFechaIso(t.desde), hasta: aFechaIso(t.hasta) })),
+    bloqueo: bloqueoPublicacion(propiedad, enModoPrueba()),
     ocupadas: [...ocupadas].filter((n) => n >= hoy).sort(),
   };
 }
@@ -105,29 +109,31 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
       nombre: true,
       capacidad: true,
       minNoches: true,
-      propiedad: { select: { id: true, abonoPct: true } },
-      temporadas: { select: { nombre: true, desde: true, hasta: true, precioNoche: true, minNoches: true } },
+      propiedad: { select: { id: true, abonoPct: true, ...SELECT_PUBLICACION } },
+      tarifas: { select: SELECT_TARIFA },
     },
   });
   if (!cabana) return { ok: false, error: "Esta cabaña no está disponible para reservas." };
 
-  if (datos.adultos + datos.ninos > cabana.capacidad) {
-    return { ok: false, error: `La cabaña es para un máximo de ${cabana.capacidad} personas.` };
-  }
+  const bloqueo = bloqueoPublicacion(cabana.propiedad, enModoPrueba());
+  if (bloqueo) return { ok: false, error: bloqueo };
 
+  // Precio y abono se recalculan aquí con las tarifas de la base; el navegador solo los muestra.
+  // calcularPrecio también valida estadía mínima (min_noches) y personas (1 a la capacidad).
   let total: number;
   try {
     total = calcularPrecio({
-      cabana: { nombre: cabana.nombre, minNoches: cabana.minNoches },
-      temporadas: cabana.temporadas satisfies TemporadaPrecio[],
+      cabana: { nombre: cabana.nombre, minNoches: cabana.minNoches, capacidad: cabana.capacidad },
+      tarifas: cabana.tarifas satisfies TarifaPrecio[],
       checkIn: datos.checkIn,
       checkOut: datos.checkOut,
+      personas: datos.adultos + datos.ninos,
     }).total;
   } catch (e) {
     if (e instanceof ErrorPrecio) return { ok: false, error: e.message };
     throw e;
   }
-  const abono = calcularAbono(total, cabana.propiedad.abonoPct);
+  const { abono } = calcularAbono(total, cabana.propiedad.abonoPct);
 
   const { prefijoCodigo } = await db.propiedad.findUniqueOrThrow({
     where: { id: cabana.propiedad.id },

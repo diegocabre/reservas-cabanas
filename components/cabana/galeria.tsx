@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { PerfilVolcan } from "@/components/perfil-volcan";
+import type { MedioGaleria } from "@/lib/galeria";
 
 /** Ubicación de cada foto en la grilla de escritorio (4×2), sin huecos con 1 a 5+ fotos. */
 function claseEscritorio(i: number, total: number): string {
@@ -12,15 +13,37 @@ function claseEscritorio(i: number, total: number): string {
 }
 
 /**
- * Galería sin JavaScript:
- * - Celular: carrusel horizontal con scroll-snap, fotos a todo el ancho y contador por foto.
- * - Escritorio (md+): grilla con una foto grande y hasta cuatro chicas.
+ * Galería de la cabaña. El primer medio es la portada.
+ * - Fotos horizontales: carrusel en el celular y grilla con una foto grande en escritorio.
+ * - Con videos o medios verticales (grabados con el celular): carrusel vertical 3:4 en el celular
+ *   y fila de cuatro en escritorio, sin recortar el formato.
+ * Videos: poster, preload="metadata", muted y playsInline (en iPhone no abre pantalla completa).
+ * Imágenes: la portada con prioridad; el resto con lazy loading.
  */
-export function Galeria({ fotos, nombre }: { fotos: string[]; nombre: string }) {
-  if (fotos.length === 0) {
+export function Galeria({ medios, nombre, vertical = false }: { medios: MedioGaleria[]; nombre: string; vertical?: boolean }) {
+  if (medios.length === 0) {
     return (
       <div className="vetas flex aspect-[4/3] items-end justify-center bg-papel-hondo md:aspect-[21/9] md:rounded-3xl">
         <PerfilVolcan className="w-2/3 max-w-md" />
+      </div>
+    );
+  }
+
+  if (vertical) {
+    return (
+      <div
+        className="sin-scrollbar flex snap-x snap-mandatory gap-1 overflow-x-auto md:gap-3 md:rounded-3xl"
+        aria-label={`Fotos y videos de ${nombre}`}
+      >
+        {medios.map((medio, i) => (
+          <figure
+            key={medio.src}
+            className="relative aspect-[3/4] w-full shrink-0 snap-center overflow-hidden bg-tinta md:w-[calc((100%-2.25rem)/4)] md:snap-start md:rounded-2xl"
+          >
+            <Medio medio={medio} portada={i === 0} sizes="(min-width: 768px) 25vw, 100vw" />
+            <Contador i={i} total={medios.length} />
+          </figure>
+        ))}
       </div>
     );
   }
@@ -30,26 +53,58 @@ export function Galeria({ fotos, nombre }: { fotos: string[]; nombre: string }) 
       className="sin-scrollbar flex snap-x snap-mandatory overflow-x-auto md:grid md:aspect-[2/1] md:snap-none md:grid-cols-4 md:grid-rows-2 md:gap-2 md:overflow-hidden md:rounded-3xl"
       aria-label={`Fotos de ${nombre}`}
     >
-      {fotos.map((foto, i) => (
+      {medios.map((medio, i) => (
         <figure
-          key={foto}
-          className={`relative aspect-[4/3] w-full shrink-0 snap-center md:aspect-auto ${claseEscritorio(i, fotos.length)}`}
+          key={medio.src}
+          className={`relative aspect-[4/3] w-full shrink-0 snap-center md:aspect-auto ${claseEscritorio(i, medios.length)}`}
         >
-          <Image
-            src={foto}
-            alt={`${nombre}, foto ${i + 1} de ${fotos.length}`}
-            fill
+          <Medio
+            medio={medio}
+            portada={i === 0}
             sizes={i === 0 ? "(min-width: 768px) 50vw, 100vw" : "(min-width: 768px) 25vw, 100vw"}
-            className="object-cover"
-            {...(i === 0 ? { fetchPriority: "high" as const, loading: "eager" as const } : {})}
           />
-          {fotos.length > 1 && (
-            <figcaption className="absolute right-3 bottom-3 rounded-full bg-tinta/60 px-2.5 py-1 text-xs font-semibold text-nieve backdrop-blur-sm md:hidden">
-              {i + 1} / {fotos.length}
-            </figcaption>
-          )}
+          <Contador i={i} total={medios.length} className="md:hidden" />
         </figure>
       ))}
     </div>
+  );
+}
+
+function Medio({ medio, portada, sizes }: { medio: MedioGaleria; portada: boolean; sizes: string }) {
+  if (medio.tipo === "video") {
+    return (
+      <video
+        src={medio.src}
+        poster={medio.imagen}
+        preload="metadata"
+        muted
+        playsInline
+        controls
+        loop
+        aria-label={medio.alt}
+        className="absolute inset-0 size-full object-cover"
+      />
+    );
+  }
+  return (
+    <Image
+      src={medio.src}
+      alt={medio.alt}
+      fill
+      sizes={sizes}
+      className="object-cover"
+      {...(portada ? { fetchPriority: "high" as const, loading: "eager" as const } : { loading: "lazy" as const })}
+    />
+  );
+}
+
+function Contador({ i, total, className = "" }: { i: number; total: number; className?: string }) {
+  if (total < 2) return null;
+  return (
+    <figcaption
+      className={`pointer-events-none absolute top-3 right-3 rounded-full bg-tinta/60 px-2.5 py-1 text-xs font-semibold text-nieve backdrop-blur-sm ${className}`}
+    >
+      {i + 1} / {total}
+    </figcaption>
   );
 }

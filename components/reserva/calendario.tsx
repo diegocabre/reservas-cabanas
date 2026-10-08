@@ -1,11 +1,11 @@
 "use client";
 
 import { format, parseISO } from "date-fns";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { DayPicker } from "react-day-picker";
 import { es } from "react-day-picker/locale";
 import "react-day-picker/style.css";
-import { limiteSalida } from "@/lib/disponibilidad";
+import { limiteSalida, llegadaPosible, salidaMuyCorta } from "@/lib/disponibilidad";
 
 // El calendario trabaja con fechas locales del navegador; hacia afuera todo es "YYYY-MM-DD".
 const aIso = (dia: Date) => format(dia, "yyyy-MM-dd");
@@ -16,6 +16,8 @@ type Props = Fechas & {
   ocupadas: string[];
   hoy: string;
   ultimoDia: string;
+  /** Estadía mínima de la cabaña. */
+  minNoches: number;
   onCambio: (fechas: Fechas) => void;
 };
 
@@ -36,8 +38,10 @@ function useEsEscritorio() {
  * Calendario de llegada y salida.
  * - Primer toque: llegada (solo noches libres). Segundo toque: salida.
  * - La salida puede caer el día en que llega otro huésped, pero no después.
+ * - Una salida antes de la estadía mínima no se acepta: se avisa "Estadía mínima: N noches".
  */
-export function Calendario({ checkIn, checkOut, ocupadas, hoy, ultimoDia, onCambio }: Props) {
+export function Calendario({ checkIn, checkOut, ocupadas, hoy, ultimoDia, minNoches, onCambio }: Props) {
+  const [aviso, setAviso] = useState(false);
   const escritorio = useEsEscritorio();
   const ocupadasSet = useMemo(() => new Set(ocupadas), [ocupadas]);
   const eligiendoSalida = Boolean(checkIn && !checkOut);
@@ -50,30 +54,45 @@ export function Calendario({ checkIn, checkOut, ocupadas, hoy, ultimoDia, onCamb
     const iso = aIso(dia);
     if (iso < hoy || iso > ultimoDia) return true;
     if (eligiendoSalida && checkIn && iso > checkIn) return limite !== null && iso > limite;
-    // Como llegada: la noche tiene que estar libre y quedar al menos una noche antes del último día.
-    return ocupadasSet.has(iso) || iso >= ultimoDia;
+    // Como llegada: las noches de la estadía mínima tienen que estar libres.
+    return !llegadaPosible(iso, minNoches, ocupadasSet, ultimoDia);
   }
 
   function elegir(dia: Date) {
     const iso = aIso(dia);
+    if (eligiendoSalida && checkIn && salidaMuyCorta(checkIn, iso, minNoches)) {
+      setAviso(true);
+      return;
+    }
+    setAviso(false);
     if (!checkIn || checkOut || iso <= checkIn) onCambio({ checkIn: iso });
     else onCambio({ checkIn, checkOut: iso });
   }
 
   return (
-    <DayPicker
-      mode="range"
-      locale={es}
-      className="calendario-reserva"
-      numberOfMonths={escritorio ? 2 : 1}
-      startMonth={parseISO(hoy)}
-      endMonth={parseISO(ultimoDia)}
-      defaultMonth={parseISO(checkIn ?? hoy)}
-      selected={{ from: checkIn ? parseISO(checkIn) : undefined, to: checkOut ? parseISO(checkOut) : undefined }}
-      onSelect={(_rango, dia) => elegir(dia)}
-      disabled={deshabilitado}
-      modifiers={{ ocupada: (dia) => ocupadasSet.has(aIso(dia)) }}
-      modifiersClassNames={{ ocupada: "dia-ocupado" }}
-    />
+    <>
+      <DayPicker
+        mode="range"
+        locale={es}
+        className="calendario-reserva"
+        numberOfMonths={escritorio ? 2 : 1}
+        startMonth={parseISO(hoy)}
+        endMonth={parseISO(ultimoDia)}
+        defaultMonth={parseISO(checkIn ?? hoy)}
+        selected={{ from: checkIn ? parseISO(checkIn) : undefined, to: checkOut ? parseISO(checkOut) : undefined }}
+        onSelect={(_rango, dia) => elegir(dia)}
+        disabled={deshabilitado}
+        modifiers={{
+          ocupada: (dia) => ocupadasSet.has(aIso(dia)),
+          corta: (dia) => eligiendoSalida && Boolean(checkIn) && salidaMuyCorta(checkIn!, aIso(dia), minNoches),
+        }}
+        modifiersClassNames={{ ocupada: "dia-ocupado", corta: "dia-corto" }}
+      />
+      {aviso && (
+        <p role="alert" className="mt-2 text-center text-sm font-semibold text-fuego-hondo">
+          Estadía mínima: {minNoches} noches
+        </p>
+      )}
+    </>
   );
 }

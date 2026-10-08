@@ -8,7 +8,7 @@ import { enlaceWhatsapp, mensajeReserva } from "@/lib/whatsapp";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { enModoPrueba } from "@/lib/sitio";
 import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
-import { nochesEntre } from "@/lib/precios";
+import { nochesEntre, saldoReserva } from "@/lib/precios";
 import { pagoEnLineaDisponible, registrarPagoMercadoPago } from "@/lib/mercadopago";
 import { obtenerReservaPublica } from "@/lib/reservas";
 import { pagarAbono } from "./acciones";
@@ -135,7 +135,7 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
         <div className="mt-6 rounded-3xl border border-musgo/30 bg-musgo/10 p-5 text-center">
           <p className="font-semibold text-musgo">Recibimos el abono de {formatearCLP(reserva.abono)}.</p>
           <p className="mt-1 text-sm text-tinta-suave">
-            Tus fechas están reservadas. El saldo de {formatearCLP(reserva.total - reserva.abono)} se paga directo a la
+            Tus fechas están reservadas. El saldo de {formatearCLP(saldoReserva(reserva))} se paga directo a la
             cabaña.
           </p>
         </div>
@@ -189,7 +189,7 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
             </p>
             <p className="flex justify-between text-sm text-tinta-suave">
               <span>Saldo pendiente</span>
-              <span>{formatearCLP(reserva.total - reserva.abono)}</span>
+              <span>{formatearCLP(saldoReserva(reserva))}</span>
             </p>
           </div>
         </div>

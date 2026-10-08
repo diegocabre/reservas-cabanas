@@ -1,30 +1,35 @@
 import { describe, expect, it } from "vitest";
 import {
-  agruparNoches,
   calcularAbono,
   calcularPrecio,
   MinimoNochesError,
-  NocheSinTemporadaError,
   nochesEntre,
+  PersonasInvalidasError,
   precioDesde,
   RangoInvalidoError,
-  TemporadasTraslapadasError,
-  type TemporadaPrecio,
+  saldoReserva,
+  SinTarifaError,
+  TarifasTraslapadasError,
+  type TarifaPrecio,
 } from "./precios";
 
-// Mismas temporadas que el seed para la Cabaña Volcán Osorno (rangos [desde, hasta)).
-const cabana = { nombre: "Cabaña Volcán Osorno", minNoches: 2 };
-const temporadas: TemporadaPrecio[] = [
-  { nombre: "Baja", desde: "2026-10-01", hasta: "2026-12-15", precioNoche: 75_000, minNoches: null },
-  { nombre: "Alta 2026-27", desde: "2026-12-15", hasta: "2027-03-01", precioNoche: 120_000, minNoches: 3 },
-  { nombre: "Media marzo", desde: "2027-03-01", hasta: "2027-04-01", precioNoche: 95_000, minNoches: null },
-  { nombre: "Baja", desde: "2027-04-01", hasta: "2027-09-17", precioNoche: 75_000, minNoches: null },
-  { nombre: "Fiestas Patrias", desde: "2027-09-17", hasta: "2027-09-21", precioNoche: 95_000, minNoches: null },
-  { nombre: "Baja", desde: "2027-09-21", hasta: "2027-12-15", precioNoche: 75_000, minNoches: null },
+// Mismas tarifas que el seed para la Cabaña Maicolpue (por noche, fijas todo el año).
+const tarifas: TarifaPrecio[] = [
+  { personasDesde: 1, personasHasta: 2, nochesDesde: 1, precioNoche: 65_000 },
+  { personasDesde: 1, personasHasta: 2, nochesDesde: 3, precioNoche: 50_000 },
+  { personasDesde: 3, personasHasta: 5, nochesDesde: 1, precioNoche: 75_000 },
+  { personasDesde: 3, personasHasta: 5, nochesDesde: 3, precioNoche: 60_000 },
+  { personasDesde: 6, personasHasta: 8, nochesDesde: 1, precioNoche: 85_000 },
+  { personasDesde: 6, personasHasta: 8, nochesDesde: 3, precioNoche: 70_000 },
 ];
+const cabana = { nombre: "Cabaña Maicolpue", minNoches: 2, capacidad: 8 };
 
-const cotizar = (checkIn: string, checkOut: string, ts = temporadas) =>
-  calcularPrecio({ cabana, temporadas: ts, checkIn, checkOut });
+// 2 noches: 10 → 12 ene. 3 noches: 10 → 13 ene.
+const DOS = ["2027-01-10", "2027-01-12"] as const;
+const TRES = ["2027-01-10", "2027-01-13"] as const;
+
+const cotizar = (personas: number, [checkIn, checkOut]: readonly [string, string], ts = tarifas, c = cabana) =>
+  calcularPrecio({ cabana: c, tarifas: ts, checkIn, checkOut, personas });
 
 describe("nochesEntre", () => {
   it("cuenta las noches sin incluir el día de check-out", () => {
@@ -49,138 +54,115 @@ describe("nochesEntre", () => {
 });
 
 describe("calcularPrecio", () => {
-  it("cobra todas las noches con la temporada que las cubre", () => {
-    const c = cotizar("2027-05-10", "2027-05-13");
-    expect(c.noches).toBe(3);
-    expect(c.total).toBe(225_000);
-    expect(c.detalle.every((n) => n.temporada === "Baja" && n.precio === 75_000)).toBe(true);
+  it("ejemplo del dueño: 4 personas, 3 noches = 3 × $60.000 = $180.000", () => {
+    const c = cotizar(4, TRES);
+    expect(c).toMatchObject({ noches: 3, personas: 4, precioNoche: 60_000, total: 180_000 });
   });
 
-  it("calcula noche por noche cuando la estadía cruza temporadas", () => {
-    // 13 y 14 dic en baja; 15, 16 y 17 en alta.
-    const c = cotizar("2026-12-13", "2026-12-18");
-    expect(c.detalle.map((n) => n.precio)).toEqual([75_000, 75_000, 120_000, 120_000, 120_000]);
-    expect(c.total).toBe(510_000);
+  it("con 2 noches cobra la tarifa de 1–2 noches y desde 3 la menor, en TODAS las noches", () => {
+    expect(cotizar(4, DOS)).toMatchObject({ precioNoche: 75_000, total: 150_000 });
+    expect(cotizar(4, TRES)).toMatchObject({ precioNoche: 60_000, total: 180_000 });
+    expect(cotizar(4, ["2027-01-10", "2027-01-17"])).toMatchObject({ noches: 7, precioNoche: 60_000, total: 420_000 });
   });
 
-  it("trata el hasta de la temporada como exclusivo", () => {
-    // La noche del 1 mar ya es media, no alta (alta tiene hasta = 2027-03-01).
-    const c = cotizar("2027-02-27", "2027-03-02");
-    expect(c.detalle.map((n) => [n.fecha, n.temporada])).toEqual([
-      ["2027-02-27", "Alta 2026-27"],
-      ["2027-02-28", "Alta 2026-27"],
-      ["2027-03-01", "Media marzo"],
-    ]);
-    expect(c.total).toBe(335_000);
+  it.each([
+    // personas, precio 2 noches, precio 3+ noches
+    [1, 65_000, 50_000], // 1 persona cae en el tramo de 1 a 2
+    [2, 65_000, 50_000],
+    [3, 75_000, 60_000],
+    [5, 75_000, 60_000],
+    [6, 85_000, 70_000],
+    [8, 85_000, 70_000],
+  ])("%i personas: $%i por noche con 2 noches y $%i con 3", (personas, precioDos, precioTres) => {
+    expect(cotizar(personas, DOS)).toMatchObject({ precioNoche: precioDos, total: 2 * precioDos });
+    expect(cotizar(personas, TRES)).toMatchObject({ precioNoche: precioTres, total: 3 * precioTres });
   });
 
-  it("aplica fiestas patrias del 17 al 20 de septiembre (noches), no el 21", () => {
-    const c = cotizar("2027-09-16", "2027-09-22");
-    expect(c.detalle.map((n) => n.precio)).toEqual([75_000, 95_000, 95_000, 95_000, 95_000, 75_000]);
+  it("rechaza 0 personas", () => {
+    expect(() => cotizar(0, DOS)).toThrow(PersonasInvalidasError);
+    expect(() => cotizar(0, DOS)).toThrow("Debe venir al menos 1 persona.");
+    expect(() => cotizar(-1, DOS)).toThrow(PersonasInvalidasError);
+    expect(() => cotizar(2.5, DOS)).toThrow(PersonasInvalidasError);
+  });
+
+  it("rechaza 9 personas (más que la capacidad) con mensaje claro", () => {
+    expect(() => cotizar(9, DOS)).toThrow(PersonasInvalidasError);
+    expect(() => cotizar(9, DOS)).toThrow("La cabaña es para un máximo de 8 personas.");
+  });
+
+  it("no cobra 0 si falta la tarifa para el grupo: falla con error claro", () => {
+    // Aunque la cabaña admitiera 9, no hay tarifa para 9 personas.
+    const intento = () => cotizar(9, DOS, tarifas, { ...cabana, capacidad: 10 });
+    expect(intento).toThrow(SinTarifaError);
+    expect(intento).toThrow('La cabaña "Cabaña Maicolpue" no tiene tarifa para 9 personas y 2 noches.');
+    expect(() => cotizar(2, DOS, [])).toThrow(SinTarifaError);
+  });
+
+  it("falla si dos tarifas aplican al mismo grupo y largo de estadía", () => {
+    const traslapadas = [...tarifas, { personasDesde: 2, personasHasta: 4, nochesDesde: 3, precioNoche: 55_000 }];
+    expect(() => cotizar(4, TRES, traslapadas)).toThrow(TarifasTraslapadasError);
+  });
+
+  describe("estadía mínima (min_noches de la cabaña)", () => {
+    it("rechaza 1 noche y acepta 2", () => {
+      expect(() => cotizar(2, ["2027-01-10", "2027-01-11"])).toThrow(MinimoNochesError);
+      expect(() => cotizar(2, ["2027-01-10", "2027-01-11"])).toThrow("Estadía mínima: 2 noches.");
+      expect(cotizar(2, DOS).noches).toBe(2);
+    });
+
+    it("usa el mínimo de cada cabaña", () => {
+      expect(() => cotizar(2, DOS, tarifas, { ...cabana, minNoches: 3 })).toThrow("Estadía mínima: 3 noches.");
+      expect(cotizar(2, ["2027-01-10", "2027-01-11"], tarifas, { ...cabana, minNoches: 1 }).total).toBe(65_000);
+    });
   });
 
   it("acepta Date a medianoche UTC, como las entrega Prisma", () => {
     const c = calcularPrecio({
       cabana,
-      temporadas: temporadas.map((t) => ({ ...t, desde: new Date(`${t.desde}T00:00:00Z`), hasta: new Date(`${t.hasta}T00:00:00Z`) })),
-      checkIn: new Date("2027-05-10T00:00:00Z"),
-      checkOut: new Date("2027-05-13T00:00:00Z"),
+      tarifas,
+      checkIn: new Date("2027-01-10T00:00:00Z"),
+      checkOut: new Date("2027-01-13T00:00:00Z"),
+      personas: 4,
     });
-    expect(c.total).toBe(225_000);
+    expect(c.total).toBe(180_000);
   });
 
-  describe("noche sin temporada", () => {
-    it("falla con error claro en vez de cobrar 0", () => {
-      // Las temporadas terminan el 2027-12-15 (exclusivo): la noche del 15 no tiene precio.
-      const intento = () => cotizar("2027-12-13", "2027-12-17");
-      expect(intento).toThrow(NocheSinTemporadaError);
-      expect(intento).toThrow('La cabaña "Cabaña Volcán Osorno" no tiene temporada configurada para la noche del 2027-12-15');
-    });
-
-    it("informa la cabaña y la primera fecha sin temporada", () => {
-      const conHueco = temporadas.filter((t) => t.nombre !== "Media marzo");
-      try {
-        cotizar("2027-02-27", "2027-03-03", conHueco);
-        expect.unreachable();
-      } catch (e) {
-        expect(e).toBeInstanceOf(NocheSinTemporadaError);
-        expect(e).toMatchObject({ cabana: "Cabaña Volcán Osorno", fecha: "2027-03-01" });
-      }
-    });
-
-    it("falla si la cabaña no tiene ninguna temporada", () => {
-      expect(() => cotizar("2027-05-10", "2027-05-13", [])).toThrow(NocheSinTemporadaError);
-    });
-  });
-
-  it("falla si dos temporadas cubren la misma noche", () => {
-    const traslapadas = [
-      ...temporadas,
-      { nombre: "Promo mayo", desde: "2027-05-01", hasta: "2027-05-15", precioNoche: 60_000, minNoches: null },
-    ];
-    expect(() => cotizar("2027-05-10", "2027-05-13", traslapadas)).toThrow(TemporadasTraslapadasError);
-  });
-
-  describe("mínimo de noches", () => {
-    it("usa el mínimo de la cabaña si la temporada no define uno", () => {
-      expect(() => cotizar("2027-05-10", "2027-05-11")).toThrow(MinimoNochesError);
-      expect(cotizar("2027-05-10", "2027-05-12").minNoches).toBe(2);
-    });
-
-    it("usa el mínimo de la temporada alta", () => {
-      expect(() => cotizar("2027-01-10", "2027-01-12")).toThrow("La estadía mínima para estas fechas es de 3 noches (elegiste 2).");
-      expect(cotizar("2027-01-10", "2027-01-13").noches).toBe(3);
-    });
-
-    it("exige el mayor mínimo entre las temporadas que toca la estadía", () => {
-      // 13 y 14 dic en baja (mín 2) + 15 dic en alta (mín 3): se exigen 3 y hay 3.
-      expect(cotizar("2026-12-13", "2026-12-16").minNoches).toBe(3);
-      // 14 dic baja + 15 dic alta: 2 noches no alcanzan.
-      expect(() => cotizar("2026-12-14", "2026-12-16")).toThrow(MinimoNochesError);
-    });
-  });
-});
-
-describe("agruparNoches", () => {
-  it("agrupa noches seguidas de la misma temporada", () => {
-    const c = cotizar("2026-12-13", "2026-12-18");
-    expect(agruparNoches(c.detalle)).toEqual([
-      { temporada: "Baja", noches: 2, precioNoche: 75_000, subtotal: 150_000 },
-      { temporada: "Alta 2026-27", noches: 3, precioNoche: 120_000, subtotal: 360_000 },
-    ]);
+  it("rechaza fechas al revés", () => {
+    expect(() => cotizar(2, ["2027-01-12", "2027-01-10"])).toThrow(RangoInvalidoError);
   });
 });
 
 describe("precioDesde", () => {
-  it("devuelve el menor precio entre las temporadas vigentes", () => {
-    expect(precioDesde(temporadas, "2026-10-01")).toBe(75_000);
+  it("devuelve el menor precio por noche de la cabaña", () => {
+    expect(precioDesde(tarifas)).toBe(50_000);
   });
 
-  it("ignora temporadas que ya terminaron (hasta es exclusivo)", () => {
-    const ts = [
-      { hasta: "2026-12-15", precioNoche: 75_000 },
-      { hasta: "2027-03-01", precioNoche: 120_000 },
-    ];
-    expect(precioDesde(ts, "2026-12-14")).toBe(75_000);
-    expect(precioDesde(ts, "2026-12-15")).toBe(120_000); // la baja terminó el 14
-  });
-
-  it("devuelve null si no queda ninguna temporada vigente", () => {
-    expect(precioDesde(temporadas, "2028-01-01")).toBeNull();
-    expect(precioDesde([], "2026-10-01")).toBeNull();
+  it("devuelve null si la cabaña no tiene tarifas", () => {
+    expect(precioDesde([])).toBeNull();
   });
 });
 
 describe("calcularAbono", () => {
-  it("calcula el porcentaje del total", () => {
-    expect(calcularAbono(225_000, 50)).toBe(112_500);
-    expect(calcularAbono(510_000, 30)).toBe(153_000);
-    expect(calcularAbono(510_000, 100)).toBe(510_000);
+  it("ejemplo del dueño: total $180.000 → abono $90.000 y saldo $90.000", () => {
+    expect(calcularAbono(180_000, 50)).toEqual({ abono: 90_000, saldo: 90_000 });
   });
 
-  it("redondea al peso", () => {
-    expect(calcularAbono(75_001, 50)).toBe(37_501);
-    expect(calcularAbono(100_000, 33)).toBe(33_000);
+  it("usa el porcentaje que se le pasa (abono_pct de la cabaña)", () => {
+    expect(calcularAbono(180_000, 30)).toEqual({ abono: 54_000, saldo: 126_000 });
+    expect(calcularAbono(180_000, 100)).toEqual({ abono: 180_000, saldo: 0 });
+    expect(calcularAbono(180_000, 0)).toEqual({ abono: 0, saldo: 180_000 });
+  });
+
+  it("redondea al peso y abono + saldo = total, incluso con total impar", () => {
+    expect(calcularAbono(75_001, 50)).toEqual({ abono: 37_501, saldo: 37_500 });
+    expect(calcularAbono(100_001, 33)).toEqual({ abono: 33_000, saldo: 67_001 });
+    for (const total of [1, 3, 99_999, 130_001, 175_555]) {
+      for (const pct of [30, 33, 50, 67]) {
+        const { abono, saldo } = calcularAbono(total, pct);
+        expect(Number.isInteger(abono) && Number.isInteger(saldo)).toBe(true);
+        expect(abono + saldo).toBe(total);
+      }
+    }
   });
 
   it("rechaza montos o porcentajes inválidos", () => {
@@ -188,5 +170,12 @@ describe("calcularAbono", () => {
     expect(() => calcularAbono(-1, 50)).toThrow();
     expect(() => calcularAbono(1000, 101)).toThrow();
     expect(() => calcularAbono(1000, 12.5)).toThrow();
+  });
+});
+
+describe("saldoReserva", () => {
+  it("es el total menos el abono guardado en la reserva", () => {
+    expect(saldoReserva({ total: 180_000, abono: 90_000 })).toBe(90_000);
+    expect(saldoReserva({ total: 75_001, ...calcularAbono(75_001, 50) })).toBe(37_500);
   });
 });

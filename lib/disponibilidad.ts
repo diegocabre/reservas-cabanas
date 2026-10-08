@@ -53,3 +53,26 @@ export function limiteSalida(checkIn: Fecha, ocupadas: Set<string>): string | nu
   const posteriores = [...ocupadas].filter((n) => n > inicio).sort();
   return posteriores[0] ?? null;
 }
+
+const sumarDias = (iso: string, n: number) =>
+  new Date(Date.parse(`${aFechaIso(iso)}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/** Primer día que se puede elegir como salida: llegada + estadía mínima de la cabaña. */
+export function primeraSalida(checkIn: Fecha, minNoches: number): string {
+  return sumarDias(aFechaIso(checkIn), minNoches);
+}
+
+/** ¿Esta salida deja una estadía más corta que el mínimo? (para avisar "Estadía mínima: N noches"). */
+export function salidaMuyCorta(checkIn: Fecha, checkOut: Fecha, minNoches: number): boolean {
+  return aFechaIso(checkOut) > aFechaIso(checkIn) && aFechaIso(checkOut) < primeraSalida(checkIn, minNoches);
+}
+
+/**
+ * ¿Se puede llegar este día? Las primeras `minNoches` noches tienen que estar libres y la salida
+ * mínima no puede pasar del último día reservable.
+ */
+export function llegadaPosible(dia: Fecha, minNoches: number, ocupadas: Set<string>, ultimoDia: string): boolean {
+  const inicio = aFechaIso(dia);
+  if (primeraSalida(inicio, minNoches) > ultimoDia) return false;
+  return Array.from({ length: minNoches }, (_, i) => sumarDias(inicio, i)).every((n) => !ocupadas.has(n));
+}
