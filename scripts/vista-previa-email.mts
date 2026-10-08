@@ -3,6 +3,7 @@
 import { writeFileSync } from "node:fs";
 import { render } from "@react-email/render";
 import { ConfirmacionReserva } from "@/emails/confirmacion-reserva";
+import { ReservaApartada } from "@/emails/reserva-apartada";
 
 const html = await render(
   ConfirmacionReserva({
@@ -32,3 +33,24 @@ const html = await render(
 const salida = process.argv[2] ?? "vista-previa-email.html";
 writeFileSync(salida, html);
 console.log(`Vista previa en ${salida}`);
+
+const htmlApartada = await render(
+  ReservaApartada({
+    codigo: "LL-7K3QX9",
+    nombreHuesped: "Ana",
+    propiedad: "Cabañas Lago Llanquihue",
+    cabana: "Cabaña Los Arrayanes",
+    llegada: "26 de octubre de 2026",
+    salida: "28 de octubre de 2026",
+    noches: 2,
+    total: "$200.000",
+    abono: "$100.000",
+    horaLimite: "15:30",
+    urlReserva: "https://reservas.solucionesdys.cl/reserva/LL-7K3QX9",
+    urlBuscar: "https://reservas.solucionesdys.cl/mi-reserva",
+    prueba: true,
+  }),
+);
+const salidaApartada = salida.replace(/\.html$/, "-apartada.html");
+writeFileSync(salidaApartada, htmlApartada);
+console.log(`Vista previa en ${salidaApartada}`);

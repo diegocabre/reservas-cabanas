@@ -1,7 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
+import { enviarEmailReservaApartada } from "@/lib/emails";
 import { esquemaReserva } from "@/lib/reserva-esquema";
 import { crearReservaWeb } from "@/lib/reservas";
 
@@ -27,5 +29,8 @@ export async function crearReserva(_previo: EstadoFormulario, formData: FormData
   const resultado = await crearReservaWeb(validado.data);
   if (!resultado.ok) return { error: resultado.error, valores };
 
-  redirect(`/reserva/${resultado.codigo}`);
+  // El link para pagar queda en el email del huésped, por si cierra la página.
+  const { codigo } = resultado;
+  after(() => enviarEmailReservaApartada(codigo));
+  redirect(`/reserva/${codigo}`);
 }

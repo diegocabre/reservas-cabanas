@@ -48,6 +48,13 @@ export function formatearHora(fecha: Date): string {
   }).format(fecha);
 }
 
+/** "diego@gmail.com" → "d***@gmail.com" (para mostrar a dónde enviamos algo sin exponer el email). */
+export function ocultarEmail(email: string): string {
+  const [usuario, dominio] = email.split("@");
+  if (!dominio) return "***";
+  return `${usuario.slice(0, 1)}***@${dominio}`;
+}
+
 /** "2027-01-10" → "10 de enero de 2027" */
 export function formatearFechaLarga(iso: string): string {
   return new Intl.DateTimeFormat("es-CL", {

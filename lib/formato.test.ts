@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatearCLP, formatearFechaCorta, formatearFechaLarga, formatearHora, hoyEnChile } from "./formato";
+import { formatearCLP, formatearFechaCorta, formatearFechaLarga, formatearHora, hoyEnChile, ocultarEmail } from "./formato";
 
 describe("formatearCLP", () => {
   it("usa punto de miles, signo $ y sin decimales", () => {
@@ -33,6 +33,14 @@ describe("formatearFechaCorta", () => {
 describe("formatearHora", () => {
   it("muestra la hora de Chile en 24 horas", () => {
     expect(formatearHora(new Date("2026-10-04T18:05:00Z"))).toBe("15:05");
+  });
+});
+
+describe("ocultarEmail", () => {
+  it("deja la primera letra y el dominio", () => {
+    expect(ocultarEmail("diego@gmail.com")).toBe("d***@gmail.com");
+    expect(ocultarEmail("a@b.cl")).toBe("a***@b.cl");
+    expect(ocultarEmail("sin-arroba")).toBe("***");
   });
 });
 

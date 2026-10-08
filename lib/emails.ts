@@ -1,7 +1,8 @@
 import { Resend } from "resend";
 import { ConfirmacionReserva, type DatosEmailConfirmacion } from "@/emails/confirmacion-reserva";
+import { ReservaApartada } from "@/emails/reserva-apartada";
 import { db } from "@/lib/db";
-import { formatearCLP, formatearFechaLarga } from "@/lib/formato";
+import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
 import { aFechaIso, nochesEntre } from "@/lib/precios";
 import { MARCA_PRUEBA } from "@/lib/reservas";
 import { urlDelSitio } from "@/lib/sitio";
@@ -23,6 +24,66 @@ export function asuntoConfirmacion(d: { codigo: string; cabana: string; prueba: 
 function clienteResend() {
   const clave = process.env.RESEND_API_KEY;
   return clave ? new Resend(clave) : null;
+}
+
+/**
+ * Envía al huésped el link para pagar apenas crea la reserva, para que pueda volver si cierra
+ * la página. Nunca lanza: si falla, la reserva sigue creada y el error queda en el log.
+ */
+export async function enviarEmailReservaApartada(codigo: string): Promise<void> {
+  try {
+    const resend = clienteResend();
+    if (!resend) return;
+
+    const r = await db.reserva.findUnique({
+      where: { codigo },
+      select: {
+        codigo: true,
+        checkIn: true,
+        checkOut: true,
+        total: true,
+        abono: true,
+        estado: true,
+        expiraEn: true,
+        notas: true,
+        huespedNombre: true,
+        huespedEmail: true,
+        cabana: { select: { nombre: true, propiedad: { select: { nombre: true, email: true } } } },
+      },
+    });
+    if (!r || r.estado !== "pendiente_pago" || !r.expiraEn || !esEmailEnviable(r.huespedEmail)) return;
+
+    const checkIn = aFechaIso(r.checkIn);
+    const checkOut = aFechaIso(r.checkOut);
+    const prueba = r.notas?.startsWith(MARCA_PRUEBA) ?? false;
+    const sitio = urlDelSitio();
+    const { propiedad } = r.cabana;
+
+    const { error } = await resend.emails.send({
+      from: `${propiedad.nombre} <${DIRECCION_REMITENTE}>`,
+      to: r.huespedEmail,
+      replyTo: esEmailEnviable(propiedad.email) ? propiedad.email : undefined,
+      subject: `${prueba ? "[Prueba] " : ""}Tus fechas están apartadas · Reserva ${r.codigo}`,
+      react: ReservaApartada({
+        codigo: r.codigo,
+        nombreHuesped: r.huespedNombre.split(/\s+/)[0],
+        propiedad: propiedad.nombre,
+        cabana: r.cabana.nombre,
+        llegada: formatearFechaLarga(checkIn),
+        salida: formatearFechaLarga(checkOut),
+        noches: nochesEntre(checkIn, checkOut).length,
+        total: formatearCLP(r.total),
+        abono: formatearCLP(r.abono),
+        horaLimite: formatearHora(r.expiraEn),
+        urlReserva: new URL(`/reserva/${r.codigo}`, sitio).toString(),
+        urlBuscar: new URL("/mi-reserva", sitio).toString(),
+        prueba,
+      }),
+    });
+    if (error) console.error("No se pudo enviar el email de reserva apartada", r.codigo, error);
+  } catch (e) {
+    console.error("Error enviando el email de reserva apartada", codigo, e);
+  }
 }
 
 /**
