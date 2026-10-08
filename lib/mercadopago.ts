@@ -51,7 +51,9 @@ export async function iniciarPagoAbono(codigo: string): Promise<ResultadoInicioP
       urlSitio: urlDelSitio(),
     }),
   });
-  const url = preferencia.init_point;
+  // En modo prueba se usa el checkout de pruebas (sandbox): el de producción rechaza las
+  // tarjetas de prueba sin llegar a crear el pago ("No pudimos procesar tu pago").
+  const url = enModoPrueba() ? (preferencia.sandbox_init_point ?? preferencia.init_point) : preferencia.init_point;
   if (!url) return { ok: false, error: "Mercado Pago no devolvió el enlace de pago. Intenta de nuevo." };
   return { ok: true, url };
 }
