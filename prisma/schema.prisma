@@ -80,8 +80,8 @@ model Propiedad {
   slug                  String   @unique
   ubicacion             String? // texto libre, ej. "Puerto Varas · Lago Llanquihue"
   urlMapa               String?  @map("url_mapa") // link de Google Maps a la propiedad
-  prefijoCodigo         String   @unique @default("RES") @map("prefijo_codigo") // códigos de reserva "LL-0001"
-  ultimoCorrelativo     Int      @default(0) @map("ultimo_correlativo") // último número de reserva usado
+  prefijoCodigo         String   @unique @default("RES") @map("prefijo_codigo") // códigos de reserva "LL-7K3QX9"
+  ultimoCorrelativo     Int      @default(0) @map("ultimo_correlativo") // en desuso: los códigos ya no son correlativos
   whatsapp              String
   email                 String
   abonoPct              Int      @default(50) @map("abono_pct")
@@ -152,7 +152,7 @@ model Temporada {
 
 model Reserva {
   id              String        @id @default(uuid()) @db.Uuid
-  codigo          String        @unique // prefijo de la propiedad + correlativo, ej. LL-0001
+  codigo          String        @unique // prefijo de la propiedad + 6 caracteres aleatorios, ej. LL-7K3QX9 (los antiguos: LL-0001)
   cabanaId        String        @map("cabana_id") @db.Uuid
   checkIn         DateTime      @map("check_in") @db.Date // inclusivo
   checkOut        DateTime      @map("check_out") @db.Date // EXCLUSIVO: ese día queda libre para otra llegada

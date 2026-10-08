@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { MINUTOS_PARA_PAGAR, nochesOcupadas, reservaOcupa, validarEstadia } from "@/lib/disponibilidad";
+import { generarCodigoReserva } from "@/lib/codigo";
 import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
-import { hoyEnChile } from "@/lib/formato";
+import { hoyEnChile, ocultarEmail } from "@/lib/formato";
 import { enModoPrueba } from "@/lib/sitio";
 import { aFechaIso, calcularAbono, calcularPrecio, ErrorPrecio, type TemporadaPrecio } from "@/lib/precios";
 import type { DatosReserva } from "@/lib/reserva-esquema";
@@ -128,35 +129,46 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
   }
   const abono = calcularAbono(total, cabana.propiedad.abonoPct);
 
-  const ahora = new Date();
+  const { prefijoCodigo } = await db.propiedad.findUniqueOrThrow({
+    where: { id: cabana.propiedad.id },
+    select: { prefijoCodigo: true },
+  });
+  const reserva = { cabanaId: cabana.id, datos, total, abono, ahora: new Date() };
+
+  // Código aleatorio. Si por azar ya existe (1 en ~887 millones), se reintenta con otro.
+  for (let intento = 1; ; intento++) {
+    try {
+      return await insertarReservaWeb(generarCodigoReserva(prefijoCodigo), reserva);
+    } catch (e) {
+      if (esCodigoRepetido(e) && intento < 5) continue;
+      throw e;
+    }
+  }
+}
+
+async function insertarReservaWeb(
+  codigo: string,
+  { cabanaId, datos, total, abono, ahora }: { cabanaId: string; datos: DatosReserva; total: number; abono: number; ahora: Date },
+): Promise<ResultadoReserva> {
   try {
-    const codigo = await db.$transaction(async (tx) => {
+    await db.$transaction(async (tx) => {
       // Las reservas pendientes que ya vencieron liberan sus fechas.
-      await expirarReservasVencidas(tx, ahora, cabana.id);
+      await expirarReservasVencidas(tx, ahora, cabanaId);
 
       // Los bloqueos no están en la restricción de la base: se revisan aquí.
       const bloqueos = await tx.bloqueo.findMany({
-        where: { cabanaId: cabana.id, desde: { lt: d(datos.checkOut) }, hasta: { gt: d(datos.checkIn) } },
+        where: { cabanaId, desde: { lt: d(datos.checkOut) }, hasta: { gt: d(datos.checkIn) } },
         select: { desde: true, hasta: true },
       });
       if (!validarEstadia(datos.checkIn, datos.checkOut, nochesOcupadas(bloqueos)).disponible) {
         throw new FechasNoDisponibles();
       }
 
-      // Correlativo por propiedad. El UPDATE bloquea la fila: dos reservas simultáneas no
-      // pueden obtener el mismo número, y si la reserva falla, el número no se consume.
-      const propiedad = await tx.propiedad.update({
-        where: { id: cabana.propiedad.id },
-        data: { ultimoCorrelativo: { increment: 1 } },
-        select: { prefijoCodigo: true, ultimoCorrelativo: true },
-      });
-      const codigo = `${propiedad.prefijoCodigo}-${String(propiedad.ultimoCorrelativo).padStart(4, "0")}`;
-
       // Si otra reserva activa se traslapa, Postgres rechaza el INSERT (reserva_sin_traslape).
       await tx.reserva.create({
         data: {
           codigo,
-          cabanaId: cabana.id,
+          cabanaId,
           checkIn: d(datos.checkIn),
           checkOut: d(datos.checkOut),
           adultos: datos.adultos,
@@ -174,7 +186,6 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
           notas: enModoPrueba() ? [MARCA_PRUEBA, datos.notas].filter(Boolean).join(" ") : datos.notas || null,
         },
       });
-      return codigo;
     });
     return { ok: true, codigo };
   } catch (e) {
@@ -183,6 +194,22 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
     }
     throw e;
   }
+}
+
+/** ¿El error es por un código de reserva que ya existe? (índice único de `codigo`). */
+function esCodigoRepetido(e: unknown): boolean {
+  const err = e as { code?: string; meta?: unknown };
+  const sobreCodigo = JSON.stringify(err?.meta ?? {}).includes("codigo");
+  return (err?.code === "P2002" || codigoPostgres(e) === "23505") && sobreCodigo;
+}
+
+/**
+ * ¿Existe una reserva con este código Y este email? Para "Buscar mi reserva": se exigen los
+ * dos datos, así nadie puede encontrar reservas ajenas probando códigos.
+ */
+export async function existeReserva(codigo: string, email: string): Promise<boolean> {
+  const reserva = await db.reserva.findUnique({ where: { codigo }, select: { huespedEmail: true } });
+  return Boolean(reserva && reserva.huespedEmail.trim().toLowerCase() === email.trim().toLowerCase());
 }
 
 /** Reserva para la página de confirmación. No expone email, teléfono ni RUT. */
@@ -196,6 +223,7 @@ export async function obtenerReservaPublica(codigo: string) {
       adultos: true,
       ninos: true,
       huespedNombre: true,
+      huespedEmail: true,
       total: true,
       abono: true,
       estado: true,
@@ -224,7 +252,7 @@ export async function obtenerReservaPublica(codigo: string) {
   });
   if (!reserva) return null;
 
-  const { huespedNombre, checkIn, checkOut, notas, pagos, ...resto } = reserva;
+  const { huespedNombre, huespedEmail, checkIn, checkOut, notas, pagos, ...resto } = reserva;
   // Solo nombre e inicial del apellido: el código es fácil de adivinar.
   const [nombre, apellido] = huespedNombre.split(/\s+/);
   return {
@@ -232,6 +260,7 @@ export async function obtenerReservaPublica(codigo: string) {
     checkIn: aFechaIso(checkIn),
     checkOut: aFechaIso(checkOut),
     huesped: apellido ? `${nombre} ${apellido[0]}.` : nombre,
+    emailOculto: ocultarEmail(huespedEmail),
     prueba: notas?.startsWith(MARCA_PRUEBA) ?? false,
     pagoEnProceso: pagos.some((p) => p.estado === "pendiente"),
     vencida: reserva.estado === "pendiente_pago" && !reservaOcupa(reserva, new Date()),
