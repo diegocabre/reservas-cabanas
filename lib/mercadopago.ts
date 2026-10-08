@@ -51,9 +51,10 @@ export async function iniciarPagoAbono(codigo: string): Promise<ResultadoInicioP
       urlSitio: urlDelSitio(),
     }),
   });
-  // En modo prueba se usa el checkout de pruebas (sandbox): el de producción rechaza las
-  // tarjetas de prueba sin llegar a crear el pago ("No pudimos procesar tu pago").
-  const url = enModoPrueba() ? (preferencia.sandbox_init_point ?? preferencia.init_point) : preferencia.init_point;
+  // Siempre init_point. Las credenciales "de prueba" de Mercado Pago pertenecen a un vendedor de
+  // prueba (test_user) y funcionan con el checkout normal; sandbox_init_point falla con ellas.
+  // Para probar, el comprador también debe ser un usuario de prueba.
+  const url = preferencia.init_point;
   if (!url) return { ok: false, error: "Mercado Pago no devolvió el enlace de pago. Intenta de nuevo." };
   return { ok: true, url };
 }
