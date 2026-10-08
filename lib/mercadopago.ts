@@ -5,7 +5,7 @@ import { enviarEmailsReservaConfirmada } from "@/lib/emails";
 import { reservaOcupa } from "@/lib/disponibilidad";
 import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { armarPreferencia, evaluarPago } from "@/lib/pagos";
-import { urlDelSitio } from "@/lib/sitio";
+import { enModoPrueba, urlDelSitio } from "@/lib/sitio";
 
 // Por ahora una sola cuenta (variable de entorno). Con varias propiedades en producción, cada
 // propiedad debe cobrar en su propia cuenta de Mercado Pago (ver CLAUDE.md).
@@ -46,7 +46,7 @@ export async function iniciarPagoAbono(codigo: string): Promise<ResultadoInicioP
       codigo: reserva.codigo,
       cabana: reserva.cabana.nombre,
       abono: reserva.abono,
-      emailHuesped: reserva.huespedEmail,
+      emailHuesped: enModoPrueba() ? null : reserva.huespedEmail,
       expiraEn: reserva.expiraEn,
       urlSitio: urlDelSitio(),
     }),

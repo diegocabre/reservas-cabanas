@@ -20,6 +20,11 @@ describe("armarPreferencia", () => {
     expect(p.payer).toEqual({ email: "ana@example.com" });
   });
 
+  it("sin email no prellena al pagador (modo prueba)", () => {
+    const p = armarPreferencia({ ...datos, emailHuesped: null, urlSitio: new URL("https://reservas.example.cl") });
+    expect(p).not.toHaveProperty("payer");
+  });
+
   it("expira junto con la reserva", () => {
     const p = armarPreferencia({ ...datos, urlSitio: new URL("https://reservas.example.cl") });
     expect(p).toMatchObject({ expires: true, expiration_date_to: "2026-10-20T18:30:00.000Z" });

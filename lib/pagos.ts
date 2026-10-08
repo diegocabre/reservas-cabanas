@@ -6,7 +6,12 @@ export interface DatosPreferencia {
   codigo: string;
   cabana: string;
   abono: number;
-  emailHuesped: string;
+  /**
+   * Email para prellenar el pago. En modo prueba NO se envía: si es de una cuenta real de
+   * Mercado Pago y la tienda usa credenciales de prueba, Mercado Pago rechaza el pago
+   * ("una de las partes es de prueba").
+   */
+  emailHuesped: string | null;
   expiraEn: Date;
   urlSitio: URL;
 }
@@ -31,7 +36,7 @@ export function armarPreferencia(d: DatosPreferencia) {
         currency_id: "CLP",
       },
     ],
-    payer: { email: d.emailHuesped },
+    ...(d.emailHuesped ? { payer: { email: d.emailHuesped } } : {}),
     external_reference: d.codigo,
     back_urls: { success: urlReserva, failure: urlReserva, pending: urlReserva },
     ...(https
