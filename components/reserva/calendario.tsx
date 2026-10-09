@@ -90,7 +90,7 @@ export function Calendario({ checkIn, checkOut, ocupadas, hoy, ultimoDia, minNoc
       />
       {aviso && (
         <p role="alert" className="mt-2 text-center text-sm font-semibold text-fuego-hondo">
-          Estadía mínima: {minNoches} noches
+          Estadía mínima: {minNoches} {minNoches === 1 ? "noche" : "noches"}
         </p>
       )}
     </>

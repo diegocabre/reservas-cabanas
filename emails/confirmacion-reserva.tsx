@@ -15,6 +15,8 @@ export interface DatosEmailConfirmacion {
   total: string; // "$225.000"
   abono: string;
   saldo: string;
+  /** La estadía quedó pagada con el abono (reservas de 1 noche con abono de 1 noche). */
+  saldoCero: boolean;
   instruccionesLlegada: string | null;
   politicaCancelacion: string | null;
   urlReserva: string;
@@ -70,7 +72,9 @@ export function ConfirmacionReserva(d: DatosEmailConfirmacion) {
                 <br />
                 <span style={{ color: c.musgo }}>Abono pagado: {d.abono}</span>
                 <br />
-                <span style={{ color: c.tintaSuave }}>Saldo pendiente: {d.saldo} (se paga directo a la cabaña)</span>
+                <span style={{ color: c.tintaSuave }}>
+                  {d.saldoCero ? "Estadía pagada completa." : `Saldo pendiente: ${d.saldo} (se paga directo a la cabaña)`}
+                </span>
               </Text>
             </Section>
           </Section>

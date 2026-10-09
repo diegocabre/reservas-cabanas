@@ -135,8 +135,9 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
         <div className="mt-6 rounded-3xl border border-musgo/30 bg-musgo/10 p-5 text-center">
           <p className="font-semibold text-musgo">Recibimos el abono de {formatearCLP(reserva.abono)}.</p>
           <p className="mt-1 text-sm text-tinta-suave">
-            Tus fechas están reservadas. El saldo de {formatearCLP(saldoReserva(reserva))} se paga directo a la
-            cabaña.
+            {saldoReserva(reserva) > 0
+              ? `Tus fechas están reservadas. El saldo de ${formatearCLP(saldoReserva(reserva))} se paga directo a la cabaña.`
+              : "Tus fechas están reservadas y la estadía quedó pagada completa."}
           </p>
         </div>
       )}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calcularAbono,
   calcularPrecio,
+  describirAbono,
   MinimoNochesError,
   nochesEntre,
   PersonasInvalidasError,
@@ -110,8 +111,15 @@ describe("calcularPrecio", () => {
       expect(cotizar(2, DOS).noches).toBe(2);
     });
 
+    it("piloto con min_noches = 1: acepta 1 noche (tarifa de 1–2 noches)", () => {
+      const c = cotizar(2, ["2027-01-10", "2027-01-11"], tarifas, { ...cabana, minNoches: 1 });
+      expect(c).toMatchObject({ noches: 1, precioNoche: 65_000, total: 65_000 });
+      expect(cotizar(6, ["2027-01-10", "2027-01-11"], tarifas, { ...cabana, minNoches: 1 }).total).toBe(85_000);
+    });
+
     it("usa el mínimo de cada cabaña", () => {
       expect(() => cotizar(2, DOS, tarifas, { ...cabana, minNoches: 3 })).toThrow("Estadía mínima: 3 noches.");
+      expect(() => cotizar(2, DOS, tarifas, { ...cabana, minNoches: 3 })).toThrow(MinimoNochesError);
       expect(cotizar(2, ["2027-01-10", "2027-01-11"], tarifas, { ...cabana, minNoches: 1 }).total).toBe(65_000);
     });
   });
@@ -143,39 +151,78 @@ describe("precioDesde", () => {
 });
 
 describe("calcularAbono", () => {
-  it("ejemplo del dueño: total $180.000 → abono $90.000 y saldo $90.000", () => {
-    expect(calcularAbono(180_000, 50)).toEqual({ abono: 90_000, saldo: 90_000 });
+  const pct = (abonoPct: number) => ({ abonoPct, abonoNoches: null });
+  const unaNoche = { abonoPct: 50, abonoNoches: 1 }; // piloto Maicolpue
+
+  describe("por noches (abono_noches)", () => {
+    it("piloto: 4 personas, 3 noches → total $180.000, abono 1 noche $60.000, saldo $120.000", () => {
+      const c = calcularPrecio({ cabana: { ...cabana, minNoches: 1 }, tarifas, checkIn: TRES[0], checkOut: TRES[1], personas: 4 });
+      expect(calcularAbono(c.total, c.precioNoche, unaNoche)).toEqual({ abono: 60_000, saldo: 120_000 });
+    });
+
+    it("estadía de 1 noche: el abono es el total y el saldo queda en 0", () => {
+      const c = calcularPrecio({ cabana: { ...cabana, minNoches: 1 }, tarifas, checkIn: "2027-01-10", checkOut: "2027-01-11", personas: 2 });
+      expect(c.total).toBe(65_000);
+      expect(calcularAbono(c.total, c.precioNoche, unaNoche)).toEqual({ abono: 65_000, saldo: 0 });
+    });
+
+    it("con N noches de abono cobra N noches, con tope en el total", () => {
+      expect(calcularAbono(300_000, 60_000, { abonoPct: 50, abonoNoches: 2 })).toEqual({ abono: 120_000, saldo: 180_000 });
+      expect(calcularAbono(60_000, 60_000, { abonoPct: 50, abonoNoches: 2 })).toEqual({ abono: 60_000, saldo: 0 });
+    });
+
+    it("ignora abono_pct cuando hay abono_noches", () => {
+      expect(calcularAbono(180_000, 60_000, { abonoPct: 100, abonoNoches: 1 }).abono).toBe(60_000);
+    });
+
+    it("rechaza noches o precio inválidos", () => {
+      expect(() => calcularAbono(180_000, 60_000, { abonoPct: 50, abonoNoches: 0 })).toThrow();
+      expect(() => calcularAbono(180_000, 0, unaNoche)).toThrow();
+    });
   });
 
-  it("usa el porcentaje que se le pasa (abono_pct de la cabaña)", () => {
-    expect(calcularAbono(180_000, 30)).toEqual({ abono: 54_000, saldo: 126_000 });
-    expect(calcularAbono(180_000, 100)).toEqual({ abono: 180_000, saldo: 0 });
-    expect(calcularAbono(180_000, 0)).toEqual({ abono: 0, saldo: 180_000 });
+  describe("por porcentaje (abono_pct, cabañas demo)", () => {
+    it("total $180.000 al 50 % → abono $90.000 y saldo $90.000", () => {
+      expect(calcularAbono(180_000, 60_000, pct(50))).toEqual({ abono: 90_000, saldo: 90_000 });
+    });
+
+    it("usa el porcentaje de la propiedad", () => {
+      expect(calcularAbono(180_000, 60_000, pct(30))).toEqual({ abono: 54_000, saldo: 126_000 });
+      expect(calcularAbono(180_000, 60_000, pct(100))).toEqual({ abono: 180_000, saldo: 0 });
+    });
+
+    it("rechaza montos o porcentajes inválidos", () => {
+      expect(() => calcularAbono(1000.5, 1000, pct(50))).toThrow();
+      expect(() => calcularAbono(-1, 1000, pct(50))).toThrow();
+      expect(() => calcularAbono(1000, 1000, pct(101))).toThrow();
+      expect(() => calcularAbono(1000, 1000, pct(12.5))).toThrow();
+    });
   });
 
-  it("redondea al peso y abono + saldo = total, incluso con total impar", () => {
-    expect(calcularAbono(75_001, 50)).toEqual({ abono: 37_501, saldo: 37_500 });
-    expect(calcularAbono(100_001, 33)).toEqual({ abono: 33_000, saldo: 67_001 });
+  it("redondea al peso y abono + saldo = total siempre, incluso con total impar", () => {
+    expect(calcularAbono(75_001, 37_500, pct(50))).toEqual({ abono: 37_501, saldo: 37_500 });
     for (const total of [1, 3, 99_999, 130_001, 175_555]) {
-      for (const pct of [30, 33, 50, 67]) {
-        const { abono, saldo } = calcularAbono(total, pct);
+      for (const regla of [pct(30), pct(33), pct(50), pct(67), unaNoche, { abonoPct: 50, abonoNoches: 2 }]) {
+        const { abono, saldo } = calcularAbono(total, 65_001, regla);
         expect(Number.isInteger(abono) && Number.isInteger(saldo)).toBe(true);
         expect(abono + saldo).toBe(total);
+        expect(saldo).toBeGreaterThanOrEqual(0);
       }
     }
   });
+});
 
-  it("rechaza montos o porcentajes inválidos", () => {
-    expect(() => calcularAbono(1000.5, 50)).toThrow();
-    expect(() => calcularAbono(-1, 50)).toThrow();
-    expect(() => calcularAbono(1000, 101)).toThrow();
-    expect(() => calcularAbono(1000, 12.5)).toThrow();
+describe("describirAbono", () => {
+  it("muestra la regla de la propiedad", () => {
+    expect(describirAbono({ abonoPct: 50, abonoNoches: 1 })).toBe("1 noche");
+    expect(describirAbono({ abonoPct: 50, abonoNoches: 2 })).toBe("2 noches");
+    expect(describirAbono({ abonoPct: 50, abonoNoches: null })).toBe("50%");
   });
 });
 
 describe("saldoReserva", () => {
   it("es el total menos el abono guardado en la reserva", () => {
     expect(saldoReserva({ total: 180_000, abono: 90_000 })).toBe(90_000);
-    expect(saldoReserva({ total: 75_001, ...calcularAbono(75_001, 50) })).toBe(37_500);
+    expect(saldoReserva({ total: 75_001, ...calcularAbono(75_001, 37_500, { abonoPct: 50, abonoNoches: null }) })).toBe(37_500);
   });
 });

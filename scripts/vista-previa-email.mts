@@ -20,6 +20,7 @@ const html = await render(
     total: "$200.000",
     abono: "$100.000",
     saldo: "$100.000",
+    saldoCero: false,
     instruccionesLlegada:
       "Check-in desde las 15:00 y check-out hasta las 11:00. Te enviaremos la ubicación exacta y el código de acceso por WhatsApp el día anterior.",
     politicaCancelacion:

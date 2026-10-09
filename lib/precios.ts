@@ -6,7 +6,7 @@
 //   cabaña cuyo tramo de personas incluye al grupo y con el mayor noches_desde que alcance. Ese
 //   precio se cobra en TODAS las noches (4 personas, 3 noches = 3 × $60.000).
 // - Si no hay tarifa para ese grupo, falla con error claro. Nunca cobra 0.
-// - Estadía mínima y abono se leen por cabaña (min_noches; abono_pct de su propiedad).
+// - Estadía mínima y abono se leen por cabaña (min_noches; abono_noches o abono_pct de su propiedad).
 // - Montos en CLP como enteros.
 //
 // Funciones puras: no tocan la base. Las usan igual el navegador (cotizar) y el servidor (cobrar).
@@ -50,7 +50,7 @@ export class MinimoNochesError extends ErrorPrecio {
     readonly minNoches: number,
     readonly noches: number,
   ) {
-    super(`Estadía mínima: ${minNoches} noches.`);
+    super(`Estadía mínima: ${minNoches} ${minNoches === 1 ? "noche" : "noches"}.`);
   }
 }
 
@@ -146,20 +146,46 @@ export interface Abono {
   saldo: number;
 }
 
+/** Regla de abono de la propiedad: N noches de la tarifa (si abono_noches no es null) o % del total. */
+export interface ReglaAbono {
+  abonoPct: number;
+  abonoNoches: number | null;
+}
+
 /**
- * Abono a pagar online (porcentaje del total, redondeado al peso) y saldo que se paga en la cabaña.
- * El saldo es lo que falta, así abono + saldo = total siempre, aunque el total sea impar.
+ * Abono a pagar online y saldo que se paga en la cabaña.
+ * - Con abono_noches: N noches al precio por noche de la estadía, con tope en el total
+ *   (piloto: 1 noche; en una estadía de 1 noche se paga todo y el saldo es 0).
+ * - Si no: porcentaje del total, redondeado al peso.
+ * El saldo es lo que falta, así abono + saldo = total siempre.
  * Es la única fuente del cálculo: formulario, reserva, Mercado Pago, webhook, emails y panel.
  */
-export function calcularAbono(total: number, abonoPct: number): Abono {
+export function calcularAbono(total: number, precioNoche: number, regla: ReglaAbono): Abono {
   if (!Number.isInteger(total) || total < 0) {
     throw new ErrorPrecio(`Total inválido: ${total}. Debe ser un entero en CLP.`);
   }
-  if (!Number.isInteger(abonoPct) || abonoPct < 0 || abonoPct > 100) {
-    throw new ErrorPrecio(`Porcentaje de abono inválido: ${abonoPct}. Debe ser un entero entre 0 y 100.`);
+  let abono: number;
+  if (regla.abonoNoches !== null) {
+    if (!Number.isInteger(regla.abonoNoches) || regla.abonoNoches < 1) {
+      throw new ErrorPrecio(`Noches de abono inválidas: ${regla.abonoNoches}. Debe ser un entero desde 1.`);
+    }
+    if (!Number.isInteger(precioNoche) || precioNoche <= 0) {
+      throw new ErrorPrecio(`Precio por noche inválido: ${precioNoche}. Debe ser un entero en CLP.`);
+    }
+    abono = Math.min(total, regla.abonoNoches * precioNoche);
+  } else {
+    if (!Number.isInteger(regla.abonoPct) || regla.abonoPct < 0 || regla.abonoPct > 100) {
+      throw new ErrorPrecio(`Porcentaje de abono inválido: ${regla.abonoPct}. Debe ser un entero entre 0 y 100.`);
+    }
+    abono = Math.round((total * regla.abonoPct) / 100);
   }
-  const abono = Math.round((total * abonoPct) / 100);
   return { abono, saldo: total - abono };
+}
+
+/** Cómo se calcula el abono, para mostrarlo: "1 noche", "2 noches" o "50%". */
+export function describirAbono(regla: ReglaAbono): string {
+  if (regla.abonoNoches === null) return `${regla.abonoPct}%`;
+  return `${regla.abonoNoches} ${regla.abonoNoches === 1 ? "noche" : "noches"}`;
 }
 
 /** Saldo de una reserva ya creada: total menos el abono que se le cobró al reservar. */

@@ -4,7 +4,14 @@ import { cloneElement, useActionState, useMemo, useState } from "react";
 import { crearReserva, type EstadoFormulario } from "@/app/reservar/[propiedad]/[cabana]/acciones";
 import { Calendario, type Fechas } from "@/components/reserva/calendario";
 import { formatearCLP, formatearFechaCorta } from "@/lib/formato";
-import { calcularAbono, calcularPrecio, ErrorPrecio, SinTarifaError, TarifasTraslapadasError } from "@/lib/precios";
+import {
+  calcularAbono,
+  calcularPrecio,
+  describirAbono,
+  ErrorPrecio,
+  SinTarifaError,
+  TarifasTraslapadasError,
+} from "@/lib/precios";
 import { esquemaReserva } from "@/lib/reserva-esquema";
 import type { DatosCalendario } from "@/lib/reservas";
 
@@ -22,7 +29,14 @@ function cotizar(datos: DatosCalendario, checkIn: string, checkOut: string, pers
       checkOut,
       personas,
     });
-    return { ok: true, noches: c.noches, personas, precioNoche: c.precioNoche, total: c.total, ...calcularAbono(c.total, datos.propiedad.abonoPct) };
+    return {
+      ok: true,
+      noches: c.noches,
+      personas,
+      precioNoche: c.precioNoche,
+      total: c.total,
+      ...calcularAbono(c.total, c.precioNoche, datos.propiedad),
+    };
   } catch (e) {
     if (e instanceof SinTarifaError || e instanceof TarifasTraslapadasError) {
       return { ok: false, error: "No pudimos calcular el precio para ese grupo. Escríbele a la cabaña para reservar." };
@@ -112,7 +126,7 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
               />
             </div>
             <p className="mt-2 text-center text-xs text-tinta-suave">
-              <span className="line-through">15</span> = ocupado · Estadía mínima: {datos.minNoches} noches
+              <span className="line-through">15</span> = ocupado · Estadía mínima: {datos.minNoches} {datos.minNoches === 1 ? "noche" : "noches"}
             </p>
             {errores?.checkIn && <p className="mt-2 text-center text-sm font-semibold text-fuego-hondo">{errores.checkIn[0]}</p>}
           </section>
@@ -211,7 +225,7 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
         {/* Resumen: tarjeta lateral en escritorio, debajo del calendario en celular. */}
         <aside className="mt-6 md:mt-0">
           <div className="vetas rounded-3xl border border-linea bg-nieve p-5 md:sticky md:top-6 md:p-6">
-            <Resumen cotizacion={cotizacion} fechas={fechas} abonoPct={datos.propiedad.abonoPct} />
+            <Resumen cotizacion={cotizacion} fechas={fechas} reglaAbono={describirAbono(datos.propiedad)} />
           </div>
         </aside>
       </div>
@@ -223,7 +237,7 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
             <p className="leading-tight">
               <span className="font-display text-2xl font-semibold">{formatearCLP(cotizacion.total)}</span>
               <span className="block text-xs text-tinta-suave">
-                {cotizacion.noches} noches · abono {formatearCLP(cotizacion.abono)}
+                {cotizacion.noches} {cotizacion.noches === 1 ? "noche" : "noches"} · abono {formatearCLP(cotizacion.abono)}
               </span>
             </p>
           ) : (
@@ -276,7 +290,7 @@ function Campo({
   );
 }
 
-function Resumen({ cotizacion, fechas, abonoPct }: { cotizacion: Cotizacion | null; fechas: Fechas; abonoPct: number }) {
+function Resumen({ cotizacion, fechas, reglaAbono }: { cotizacion: Cotizacion | null; fechas: Fechas; reglaAbono: string }) {
   return (
     <>
       <h2 className="font-display text-lg font-semibold">Tu estadía</h2>
@@ -301,7 +315,7 @@ function Resumen({ cotizacion, fechas, abonoPct }: { cotizacion: Cotizacion | nu
         <>
           <p className="mt-4 flex justify-between gap-3 text-sm">
             <span className="text-tinta-suave">
-              {cotizacion.noches} noches × {formatearCLP(cotizacion.precioNoche)}
+              {cotizacion.noches} {cotizacion.noches === 1 ? "noche" : "noches"} × {formatearCLP(cotizacion.precioNoche)}
               <span className="block text-xs">
                 {cotizacion.personas} {cotizacion.personas === 1 ? "persona" : "personas"}
               </span>
@@ -314,13 +328,17 @@ function Resumen({ cotizacion, fechas, abonoPct }: { cotizacion: Cotizacion | nu
               <span>{formatearCLP(cotizacion.total)}</span>
             </p>
             <p className="flex justify-between text-sm font-semibold text-lago">
-              <span>Abono para reservar ({abonoPct}%)</span>
+              <span>Abono para reservar ({reglaAbono})</span>
               <span>{formatearCLP(cotizacion.abono)}</span>
             </p>
-            <p className="flex justify-between text-sm text-tinta-suave">
-              <span>Saldo pendiente</span>
-              <span>{formatearCLP(cotizacion.saldo)}</span>
-            </p>
+            {cotizacion.saldo > 0 ? (
+              <p className="flex justify-between text-sm text-tinta-suave">
+                <span>Saldo en la cabaña</span>
+                <span>{formatearCLP(cotizacion.saldo)}</span>
+              </p>
+            ) : (
+              <p className="text-sm text-tinta-suave">Con el abono queda pagada toda la estadía.</p>
+            )}
           </div>
         </>
       )}

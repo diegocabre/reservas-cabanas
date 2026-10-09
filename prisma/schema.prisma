@@ -84,7 +84,8 @@ model Propiedad {
   ultimoCorrelativo     Int      @default(0) @map("ultimo_correlativo") // en desuso: los códigos ya no son correlativos
   whatsapp              String
   email                 String
-  abonoPct              Int      @default(50) @map("abono_pct")
+  abonoPct              Int      @default(50) @map("abono_pct") // abono = % del total (si abono_noches es null)
+  abonoNoches           Int?     @map("abono_noches") // abono = N noches de la tarifa de la estadía (piloto: 1), con tope en el total
   politicaCancelacion   String?  @map("politica_cancelacion")
   instruccionesLlegada  String?  @map("instrucciones_llegada")
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)

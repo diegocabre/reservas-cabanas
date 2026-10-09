@@ -155,6 +155,7 @@ export async function enviarEmailsReservaConfirmada(codigo: string): Promise<voi
       total: formatearCLP(r.total),
       abono: formatearCLP(r.abono),
       saldo: formatearCLP(saldoReserva(r)),
+      saldoCero: saldoReserva(r) === 0,
       instruccionesLlegada: propiedad.instruccionesLlegada,
       politicaCancelacion: propiedad.politicaCancelacion,
       urlReserva: new URL(`/reserva/${r.codigo}`, urlDelSitio()).toString(),

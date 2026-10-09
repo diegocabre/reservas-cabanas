@@ -69,6 +69,7 @@ async function main() {
     whatsapp: "+56947637541",
     email: "contacto@solucionesdys.cl", // recibe el aviso de cada reserva confirmada y las respuestas de los huéspedes
     abonoPct: 50,
+    abonoNoches: null,
     politicaCancelacion:
       "Cancelación sin costo hasta 15 días antes de la llegada (se devuelve el abono). Con menos de 15 días, el abono no es reembolsable.",
     instruccionesLlegada:
@@ -82,8 +83,9 @@ async function main() {
   });
 
   for (const cabanaDatos of CABANAS) {
-    // Demo: datos de ejemplo. Estadía mínima 2 noches; las temporadas antiguas quedan en la base sin uso.
-    const datos = { ...cabanaDatos, minNoches: 2, demo: true };
+    // Demo: datos de ejemplo con las reglas del piloto (se aceptan estadías de 1 noche); abono 50 %.
+    // Las temporadas antiguas quedan en la base sin uso.
+    const datos = { ...cabanaDatos, minNoches: 1, demo: true };
     const cabana = await db.cabana.upsert({
       where: { propiedadId_slug: { propiedadId: propiedad.id, slug: cabanaDatos.slug } },
       update: datos,
@@ -115,7 +117,9 @@ async function cargarMaicolpue() {
     // Nunca un número o email inventado: podría ser de una persona real.
     whatsapp: "PENDIENTE",
     email: "PENDIENTE",
+    // Abono para reservar: el valor de 1 noche de la tarifa de la estadía (abono_pct no se usa).
     abonoPct: 50,
+    abonoNoches: 1,
     politicaCancelacion:
       "PENDIENTE: cancelación sin costo hasta 15 días antes de la llegada (se devuelve el abono). Con menos de 15 días, el abono no es reembolsable.",
     instruccionesLlegada:
@@ -142,7 +146,7 @@ async function cargarMaicolpue() {
     servicios: ["Cocina equipada", "Cocina a gas", "Sala comedor", "Ventanal al bosque"],
     // Imágenes fijas de la galería en orden: la primera (poster del video 1) es la portada y la vista previa.
     fotos: fotosDeGaleria(galeria),
-    minNoches: 2,
+    minNoches: 1, // se aceptan estadías de 1 noche
     demo: false,
   };
   const cabana = await db.cabana.upsert({

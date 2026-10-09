@@ -40,7 +40,7 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
       capacidad: true,
       minNoches: true,
       fotos: true,
-      propiedad: { select: { nombre: true, slug: true, abonoPct: true, ...SELECT_PUBLICACION } },
+      propiedad: { select: { nombre: true, slug: true, abonoPct: true, abonoNoches: true, ...SELECT_PUBLICACION } },
       tarifas: { select: SELECT_TARIFA },
       reservas: {
         where: { estado: { in: ["pendiente_pago", "confirmada"] }, checkOut: { gt: d(hoy) } },
@@ -60,7 +60,12 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
   return {
     ...resto,
     // Solo lo que el formulario muestra: las instrucciones de llegada no viajan al navegador.
-    propiedad: { nombre: propiedad.nombre, slug: propiedad.slug, abonoPct: propiedad.abonoPct },
+    propiedad: {
+      nombre: propiedad.nombre,
+      slug: propiedad.slug,
+      abonoPct: propiedad.abonoPct,
+      abonoNoches: propiedad.abonoNoches,
+    },
     hoy,
     ultimoDia: sumarMeses(hoy, MESES_RESERVABLES),
     bloqueo: bloqueoPublicacion(propiedad, enModoPrueba()),
@@ -109,7 +114,7 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
       nombre: true,
       capacidad: true,
       minNoches: true,
-      propiedad: { select: { id: true, abonoPct: true, ...SELECT_PUBLICACION } },
+      propiedad: { select: { id: true, abonoPct: true, abonoNoches: true, ...SELECT_PUBLICACION } },
       tarifas: { select: SELECT_TARIFA },
     },
   });
@@ -120,20 +125,21 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
 
   // Precio y abono se recalculan aquí con las tarifas de la base; el navegador solo los muestra.
   // calcularPrecio también valida estadía mínima (min_noches) y personas (1 a la capacidad).
-  let total: number;
+  let cotizacion: ReturnType<typeof calcularPrecio>;
   try {
-    total = calcularPrecio({
+    cotizacion = calcularPrecio({
       cabana: { nombre: cabana.nombre, minNoches: cabana.minNoches, capacidad: cabana.capacidad },
       tarifas: cabana.tarifas satisfies TarifaPrecio[],
       checkIn: datos.checkIn,
       checkOut: datos.checkOut,
       personas: datos.adultos + datos.ninos,
-    }).total;
+    });
   } catch (e) {
     if (e instanceof ErrorPrecio) return { ok: false, error: e.message };
     throw e;
   }
-  const { abono } = calcularAbono(total, cabana.propiedad.abonoPct);
+  const { total } = cotizacion;
+  const { abono } = calcularAbono(total, cotizacion.precioNoche, cabana.propiedad);
 
   const { prefijoCodigo } = await db.propiedad.findUniqueOrThrow({
     where: { id: cabana.propiedad.id },
