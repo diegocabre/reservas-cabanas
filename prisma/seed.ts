@@ -117,7 +117,7 @@ async function cargarMaicolpue() {
     // Nunca un número o email inventado: podría ser de una persona real.
     whatsapp: "PENDIENTE",
     email: "PENDIENTE",
-    // Abono para reservar: 50 % del total (respuesta del dueño del 2026-10-09, por confirmar). abono_noches sin usar.
+    // Abono para reservar: 50 % del total (confirmado por el dueño el 2026-10-09). abono_noches sin usar.
     abonoPct: 50,
     abonoNoches: null,
     politicaCancelacion:

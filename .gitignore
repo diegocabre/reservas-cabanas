@@ -49,6 +49,8 @@ next-env.d.ts
 
 # videos y grabaciones (no van al repo)
 *.mp4
+# excepción: videos de las galerías de cabañas (se publican con el sitio)
+!public/piloto/*/galeria/*.mp4
 
 # editor
 .vscode/
