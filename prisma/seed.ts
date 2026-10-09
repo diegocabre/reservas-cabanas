@@ -117,9 +117,9 @@ async function cargarMaicolpue() {
     // Nunca un número o email inventado: podría ser de una persona real.
     whatsapp: "PENDIENTE",
     email: "PENDIENTE",
-    // Abono para reservar: el valor de 1 noche de la tarifa de la estadía (abono_pct no se usa).
+    // Abono para reservar: 50 % del total (respuesta del dueño del 2026-10-09, por confirmar). abono_noches sin usar.
     abonoPct: 50,
-    abonoNoches: 1,
+    abonoNoches: null,
     politicaCancelacion:
       "PENDIENTE: cancelación sin costo hasta 15 días antes de la llegada (se devuelve el abono). Con menos de 15 días, el abono no es reembolsable.",
     instruccionesLlegada:
