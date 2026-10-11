@@ -117,13 +117,13 @@ async function cargarMaicolpue() {
     // Ubicación exacta de la cabaña (link de Google Maps del dueño, 2026-10-11), sin parámetros de rastreo.
     urlMapa: "https://www.google.com/maps/search/?api=1&query=-40.5989838%2C-73.7373428",
     // Nunca un número o email inventado: podría ser de una persona real.
-    whatsapp: "PENDIENTE",
+    whatsapp: "+56944006839", // confirmado por el dueño el 2026-10-11
     email: "PENDIENTE",
     // Abono para reservar: 50 % del total (confirmado por el dueño el 2026-10-09). abono_noches sin usar.
     abonoPct: 50,
     abonoNoches: null,
-    politicaCancelacion:
-      "PENDIENTE: cancelación sin costo hasta 15 días antes de la llegada (se devuelve el abono). Con menos de 15 días, el abono no es reembolsable.",
+    // Confirmada por el dueño el 2026-10-11.
+    politicaCancelacion: "Una vez hecha la reserva no hay devolución del dinero pagado.",
     // Horarios confirmados por el dueño el 2026-10-11.
     instruccionesLlegada: "Check-in desde las 14:00 y check-out hasta las 11:30.",
   };
