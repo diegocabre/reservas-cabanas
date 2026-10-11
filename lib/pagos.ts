@@ -50,6 +50,15 @@ export function armarPreferencia(d: DatosPreferencia) {
   };
 }
 
+/**
+ * ¿El pago lo cobró la cuenta esperada? `esperado` es el id de vendedor de la cuenta conectada de la
+ * propiedad; null cuando la propiedad cobra con la cuenta de la plataforma (solo en modo prueba).
+ */
+export function cobroDeLaCuentaEsperada(collectorId: number | string | undefined, esperado: string | null): boolean {
+  if (esperado === null) return true;
+  return collectorId !== undefined && String(collectorId) === esperado;
+}
+
 /** Marca en `notas` de una reserva con un pago que el dueño debe revisar (monto distinto, fechas tomadas). */
 export const MARCA_REVISAR = "[REVISAR PAGO]";
 

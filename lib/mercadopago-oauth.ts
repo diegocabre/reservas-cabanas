@@ -11,6 +11,9 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 export const URL_AUTORIZACION = "https://auth.mercadopago.com/authorization";
 export const RUTA_RETORNO_OAUTH = "/admin/mercadopago/conectado";
 
+/** Cookie con el `state` del OAuth: dura lo que tarda el dueño en autorizar en Mercado Pago. */
+export const COOKIE_ESTADO_OAUTH = "mp_oauth_estado";
+
 /** Días antes del vencimiento (180 días) en que se renueva el token. */
 export const DIAS_MARGEN_RENOVACION = 30;
 

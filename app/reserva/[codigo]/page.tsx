@@ -11,7 +11,7 @@ import { PerfilVolcan } from "@/components/perfil-volcan";
 import { enModoPrueba } from "@/lib/sitio";
 import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
 import { nochesEntre, saldoReserva } from "@/lib/precios";
-import { pagoEnLineaDisponible, registrarPagoMercadoPago } from "@/lib/mercadopago";
+import { puedeCobrarEnLinea, registrarPagoMercadoPago } from "@/lib/mercadopago";
 import { obtenerReservaPublica } from "@/lib/reservas";
 import { pagarAbono } from "./acciones";
 import { BotonPagar } from "./boton-pagar";
@@ -35,11 +35,12 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
   // Al volver de Mercado Pago llega el id del pago: se verifica contra su API antes de mostrar
   // nada (el webhook hace lo mismo; registrar dos veces no tiene efecto).
   const idPago = [consulta.payment_id, consulta.collection_id].flat().find((v) => v && /^\d+$/.test(v));
-  if (idPago && pagoEnLineaDisponible()) {
-    await registrarPagoMercadoPago(idPago).catch((e) => console.error("No se pudo verificar el pago", e));
+  const codigoReserva = decodeURIComponent(codigo).toUpperCase();
+  if (idPago) {
+    await registrarPagoMercadoPago(idPago, { codigo: codigoReserva }).catch((e) => console.error("No se pudo verificar el pago", e));
   }
 
-  const reserva = await obtenerReservaPublica(decodeURIComponent(codigo).toUpperCase());
+  const reserva = await obtenerReservaPublica(codigoReserva);
   if (!reserva) notFound();
   const errorPago = consulta.error === "pago";
   const pagoRechazado = consulta.status === "rejected" || consulta.collection_status === "rejected";
@@ -50,6 +51,7 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
   const personas = reserva.adultos + reserva.ninos;
 
   const prueba = enModoPrueba() || reserva.prueba;
+  const cobroEnLinea = reserva.estado === "pendiente_pago" && (await puedeCobrarEnLinea(cabana.propiedad.id));
   const nombre = reserva.huesped.split(" ")[0];
   const whatsapp = enlaceWhatsapp(
     cabana.propiedad.whatsapp,
@@ -90,7 +92,7 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
                   abono de <strong>{formatearCLP(reserva.abono)}</strong>. Después de esa hora las fechas se liberan.
                 </p>
               </>
-            ) : pagoEnLineaDisponible() ? (
+            ) : cobroEnLinea ? (
               <>
                 <p className="font-semibold">
                   Paga el abono de <strong>{formatearCLP(reserva.abono)}</strong> antes de las{" "}

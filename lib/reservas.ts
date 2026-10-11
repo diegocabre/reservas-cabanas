@@ -254,6 +254,7 @@ export async function obtenerReservaPublica(codigo: string) {
           demo: true,
           propiedad: {
             select: {
+              id: true,
               nombre: true,
               slug: true,
               ubicacion: true,

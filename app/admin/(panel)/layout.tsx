@@ -17,15 +17,16 @@ export default async function LayoutPanel({ children }: LayoutProps<"/admin">) {
     <div className="flex flex-1 flex-col">
       <header className="border-b border-linea bg-nieve">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-5 py-2">
-          <nav aria-label="Panel" className="flex gap-1">
+          <nav aria-label="Panel" className="-ml-2 flex min-w-0 gap-0.5 overflow-x-auto [scrollbar-width:none]">
             <EnlacePanel href="/admin">Hoy</EnlacePanel>
             <EnlacePanel href="/admin/reservas">Reservas</EnlacePanel>
             <EnlacePanel href="/admin/bloqueos">Bloqueos</EnlacePanel>
+            <EnlacePanel href="/admin/cobros">Cobros</EnlacePanel>
           </nav>
           <div className="flex min-w-0 items-center gap-2">
             <span className="hidden min-w-0 truncate text-sm text-tinta-suave sm:block">{admin.email}</span>
             <form action={cerrarSesion}>
-              <button type="submit" className="min-h-11 rounded-full px-4 text-sm font-semibold text-tinta-suave hover:bg-papel-hondo hover:text-tinta">
+              <button type="submit" className="min-h-11 shrink-0 rounded-full px-3 text-sm font-semibold text-tinta-suave hover:bg-papel-hondo hover:text-tinta">
                 Salir
               </button>
             </form>

@@ -8,7 +8,13 @@ import { firmaValida } from "@/lib/pagos";
  */
 export async function POST(request: Request) {
   const url = new URL(request.url);
-  const cuerpo = (await request.json().catch(() => ({}))) as { type?: string; action?: string; data?: { id?: string | number } };
+  const cuerpo = (await request.json().catch(() => ({}))) as {
+    type?: string;
+    action?: string;
+    data?: { id?: string | number };
+    /** Vendedor dueño del pago: con su cuenta conectada se consulta el pago. */
+    user_id?: string | number;
+  };
 
   const tipo = cuerpo.type ?? url.searchParams.get("type") ?? url.searchParams.get("topic");
   const id = String(cuerpo.data?.id ?? url.searchParams.get("data.id") ?? url.searchParams.get("id") ?? "");
@@ -29,6 +35,7 @@ export async function POST(request: Request) {
   }
 
   // Si algo falla respondemos 500 y Mercado Pago reintenta más tarde.
-  const resultado = await registrarPagoMercadoPago(id);
+  const vendedor = cuerpo.user_id ?? url.searchParams.get("user_id");
+  const resultado = await registrarPagoMercadoPago(id, { mpUserId: vendedor ? String(vendedor) : null });
   return Response.json({ ok: true, resultado });
 }

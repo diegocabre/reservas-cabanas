@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { armarPreferencia, evaluarPago, firmaValida } from "./pagos";
+import { armarPreferencia, cobroDeLaCuentaEsperada, evaluarPago, firmaValida } from "./pagos";
 
 const datos = {
   codigo: "LL-0007",
@@ -89,5 +89,18 @@ describe("firmaValida", () => {
     expect(firmaValida({ secreto, firma: `ts=1700000001,v1=${v1}`, requestId: "abc-1", dataId: "123456" })).toBe(false);
     expect(firmaValida({ secreto, firma: null, requestId: "abc-1", dataId: "123456" })).toBe(false);
     expect(firmaValida({ secreto, firma: "basura", requestId: "abc-1", dataId: "123456" })).toBe(false);
+  });
+});
+
+describe("cobroDeLaCuentaEsperada", () => {
+  it("acepta solo pagos cobrados por la cuenta conectada de la propiedad", () => {
+    expect(cobroDeLaCuentaEsperada(123456, "123456")).toBe(true);
+    expect(cobroDeLaCuentaEsperada("123456", "123456")).toBe(true);
+    expect(cobroDeLaCuentaEsperada(999999, "123456")).toBe(false); // pago a otra cuenta con el código de esta reserva
+    expect(cobroDeLaCuentaEsperada(undefined, "123456")).toBe(false);
+  });
+
+  it("sin cuenta conectada (cuenta de la plataforma, modo prueba) no hay vendedor que comparar", () => {
+    expect(cobroDeLaCuentaEsperada(999999, null)).toBe(true);
   });
 });
