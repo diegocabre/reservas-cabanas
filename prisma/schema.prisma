@@ -99,6 +99,7 @@ model Propiedad {
   abonoNoches          Int?     @map("abono_noches") // abono = N noches de la tarifa de la estadía (piloto: 1), con tope en el total
   politicaCancelacion  String?  @map("politica_cancelacion")
   instruccionesLlegada String?  @map("instrucciones_llegada")
+  tema                 Json? // colores propios de la propiedad (lib/tema.ts); null = paleta base
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 

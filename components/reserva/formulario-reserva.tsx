@@ -128,7 +128,7 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
             <p className="mt-2 text-center text-xs text-tinta-suave">
               <span className="line-through">15</span> = ocupado · Estadía mínima: {datos.minNoches} {datos.minNoches === 1 ? "noche" : "noches"}
             </p>
-            {errores?.checkIn && <p className="mt-2 text-center text-sm font-semibold text-fuego-hondo">{errores.checkIn[0]}</p>}
+            {errores?.checkIn && <p className="mt-2 text-center text-sm font-semibold text-alerta-hondo">{errores.checkIn[0]}</p>}
           </section>
 
           {/* Paso 2: datos del huésped */}
@@ -202,7 +202,7 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
               </Campo>
 
               {estado.error && (
-                <p role="alert" className="rounded-2xl bg-fuego/10 px-4 py-3 text-sm font-semibold text-fuego-hondo">
+                <p role="alert" className="rounded-2xl bg-alerta/10 px-4 py-3 text-sm font-semibold text-alerta-hondo">
                   {estado.error}
                 </p>
               )}
@@ -257,7 +257,7 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
 }
 
 const claseInput =
-  "w-full rounded-xl border border-linea bg-papel px-3.5 py-3 text-base text-tinta outline-none transition-colors focus:border-lago focus:ring-2 focus:ring-lago/20 aria-invalid:border-fuego";
+  "w-full rounded-xl border border-linea bg-papel px-3.5 py-3 text-base text-tinta outline-none transition-colors focus:border-lago focus:ring-2 focus:ring-lago/20 aria-invalid:border-alerta";
 
 function Campo({
   etiqueta,
@@ -280,7 +280,7 @@ function Campo({
       </label>
       {cloneElement(children, { "aria-invalid": Boolean(error), "aria-describedby": error ? `${nombre}-error` : undefined })}
       {error ? (
-        <p id={`${nombre}-error`} className="mt-1 text-sm font-semibold text-fuego-hondo">
+        <p id={`${nombre}-error`} className="mt-1 text-sm font-semibold text-alerta-hondo">
           {error}
         </p>
       ) : (
@@ -306,7 +306,7 @@ function Resumen({ cotizacion, fechas, reglaAbono }: { cotizacion: Cotizacion | 
       </dl>
 
       {cotizacion?.ok === false && (
-        <p role="alert" className="mt-4 rounded-2xl bg-fuego/10 px-4 py-3 text-sm font-semibold text-fuego-hondo">
+        <p role="alert" className="mt-4 rounded-2xl bg-alerta/10 px-4 py-3 text-sm font-semibold text-alerta-hondo">
           {cotizacion.error}
         </p>
       )}

@@ -24,8 +24,8 @@ export function EtiquetaPrueba() {
 export function AvisoPendientes({ pendientes, className = "" }: { pendientes: string[]; className?: string }) {
   if (pendientes.length === 0) return null;
   return (
-    <div role="note" className={`rounded-2xl border border-dashed border-fuego/40 bg-fuego/5 px-4 py-3 text-sm ${className}`}>
-      <p className="font-bold text-fuego-hondo">Datos de ejemplo (PENDIENTE)</p>
+    <div role="note" className={`rounded-2xl border border-dashed border-alerta/40 bg-alerta/5 px-4 py-3 text-sm ${className}`}>
+      <p className="font-bold text-alerta-hondo">Datos de ejemplo (PENDIENTE)</p>
       <p className="mt-0.5 text-tinta-suave">
         Faltan por confirmar: {pendientes.join(", ")}. Mientras falten, fuera del modo prueba esta cabaña no se publica ni
         cobra.

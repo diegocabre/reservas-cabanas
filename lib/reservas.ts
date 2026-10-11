@@ -259,6 +259,7 @@ export async function obtenerReservaPublica(codigo: string) {
               whatsapp: true,
               politicaCancelacion: true,
               instruccionesLlegada: true,
+              tema: true,
             },
           },
         },

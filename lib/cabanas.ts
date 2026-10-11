@@ -4,7 +4,8 @@ import { galeriaDeCabana } from "@/lib/galeria";
 import { precioDesde } from "@/lib/precios";
 import { bloqueoPublicacion, bloqueoReserva, datosPendientes, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enModoPrueba } from "@/lib/sitio";
-import { propiedadesVisibles } from "@/lib/directorio";
+import { propiedadesVisibles, volverDesdeCabana } from "@/lib/directorio";
+import { leerTema } from "@/lib/tema";
 
 /**
  * Cabaña activa para la página pública, o null si no existe / está inactiva.
@@ -23,7 +24,16 @@ export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSl
       fotos: true,
       minNoches: true,
       demo: true,
-      propiedad: { select: { nombre: true, slug: true, urlMapa: true, ...SELECT_PUBLICACION } },
+      propiedad: {
+        select: {
+          nombre: true,
+          slug: true,
+          urlMapa: true,
+          ...SELECT_PUBLICACION,
+          // Cuántas cabañas lista la propiedad (mismas reglas que su página), para el botón "volver".
+          _count: { select: { cabanas: { where: { activa: true, ...(enModoPrueba() ? {} : { demo: false }) } } } },
+        },
+      },
       tarifas: { select: { precioNoche: true } },
     },
   });
@@ -32,6 +42,7 @@ export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSl
   const { tarifas, ...resto } = cabana;
   return {
     ...resto,
+    volver: volverDesdeCabana({ ...cabana.propiedad, cabanasListadas: cabana.propiedad._count.cabanas }),
     precioDesde: precioDesde(tarifas),
     galeria: galeriaDeCabana({ ...cabana, propiedadSlug: cabana.propiedad.slug }),
     pendientes: datosPendientes(cabana.propiedad),
@@ -121,3 +132,9 @@ export const obtenerDirectorio = cache(async () => {
 });
 
 export type PropiedadEnDirectorio = Awaited<ReturnType<typeof obtenerDirectorio>>[number];
+
+/** Tema visual de una propiedad (lib/tema.ts), o null para la paleta base. */
+export const obtenerTemaPropiedad = cache(async (propiedadSlug: string) => {
+  const propiedad = await db.propiedad.findUnique({ where: { slug: propiedadSlug }, select: { tema: true } });
+  return leerTema(propiedad?.tema);
+});

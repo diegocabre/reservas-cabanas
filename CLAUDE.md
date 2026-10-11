@@ -43,6 +43,7 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 - Por ahora hay una sola cuenta de Mercado Pago (`MERCADOPAGO_ACCESS_TOKEN`). En producción con cabañas reales, cada propiedad debe cobrar en su propia cuenta: el dinero del huésped no debe pasar por Soluciones DyS.
 - Modo prueba (`enModoPrueba()` en `lib/sitio.ts`): activado por defecto mientras no haya pago en línea. Muestra avisos de prueba en el botón de reserva, el formulario y la confirmación, y marca las reservas con `[PRUEBA]` en `notas`. Se desactiva con `RESERVAS_MODO_PRUEBA=false`.
 - Origen de reserva: `web`, `airbnb`, `booking`, `manual`.
+- Tema visual por propiedad (`propiedad.tema`, `lib/tema.ts`): colores propios que sobrescriben las variables de `app/globals.css` en las páginas de la propiedad, sus cabañas, reservar y la confirmación (`<TemaPropiedad>`). Null = paleta base. Todo tema debe pasar `problemasDeContraste` (WCAG AA 4,5:1); los errores usan `alerta`, no `fuego`, para seguir leyéndose como error. Ningún color fijo en los componentes públicos: siempre los tokens.
 - La base es multi-propiedad desde el inicio: toda cabaña pertenece a una `Propiedad`. Un usuario puede administrar varias propiedades (una fila `Admin` por usuario y propiedad).
 - Panel del dueño (`/admin`): login con link mágico de Supabase Auth, sin registro abierto (los admins se crean con `npm run admin:registrar`). `proxy.ts` (el middleware de Next 16) solo revisa la sesión; cada página y Server Action llama a `requerirAdmin()` (`lib/admin.ts`). Toda consulta del panel va por `lib/panel-datos.ts`, con dos defensas: filtra por las propiedades del admin (`deSusPropiedades`) y corre dentro de `comoAdmin()` (`lib/panel-acceso.ts`), que usa el rol `panel_admin` para que Postgres aplique RLS.
 - RLS activado en todas las tablas; nuevas tablas también deben activarlo en su migración (`alter table "x" enable row level security;`). Toda lectura y escritura pasa por Prisma en el servidor, que se conecta como `postgres` (dueño de las tablas, con `BYPASSRLS`); la API pública de Supabase (`anon`, `authenticated`) no tiene acceso a nada y no tiene políticas. Incluye `_prisma_migrations`.
@@ -52,7 +53,7 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 
 Propiedad, Admin, Cabana, Tarifa, Temporada (sin uso), Reserva, Pago, Auditoria, Bloqueo, CalendarioExterno.
 
-- **Propiedad**: nombre, slug único, ubicacion, prefijo_codigo (único), ultimo_correlativo, whatsapp, email, abono_pct (default 50), abono_noches (opcional; si está, manda sobre abono_pct), politica_cancelacion, instrucciones_llegada
+- **Propiedad**: nombre, slug único, tema (JSON, opcional), ubicacion, prefijo_codigo (único), ultimo_correlativo, whatsapp, email, abono_pct (default 50), abono_noches (opcional; si está, manda sobre abono_pct), politica_cancelacion, instrucciones_llegada
 - **Admin**: usuario_id (= id de usuario de Supabase Auth), propiedad_id, email, rol (`dueno` | `staff`). Única por usuario + propiedad.
 - **Cabana**: propiedad_id, nombre, slug (único por propiedad), capacidad, dormitorios, descripcion, servicios (text[]), fotos (text[]), min_noches, activa, demo (cabaña de demostración)
 - **Tarifa**: cabana_id, personas_desde, personas_hasta (inclusivos), noches_desde, precio_noche (int). Única por cabaña + personas_desde + noches_desde.

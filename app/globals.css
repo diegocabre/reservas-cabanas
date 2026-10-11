@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 /*
- * Paleta "sur de Chile": madera, lago, musgo, volcán y el fuego de la salamandra.
- * ÚNICA fuente de los colores. Para dar colores propios a una propiedad, basta con
- * sobrescribir estas variables en un contenedor (ej. style={{ "--lago": "#..." }}).
+ * Paleta base "sur de Chile": madera, lago, musgo, volcán y el fuego de la salamandra. La usa toda
+ * propiedad sin tema propio. Cada propiedad puede sobrescribir estas variables con su columna `tema`
+ * (lib/tema.ts, aplicado por <TemaPropiedad>). lib/tema.ts replica estos valores para revisar
+ * contraste; un test verifica que coincidan.
  */
 :root {
   --papel: #f6f0e6; /* fondo crema, como papel de pino */
@@ -18,7 +19,11 @@
   --volcan: #3b3a37;
   --fuego: #c0522a; /* llamado a la acción */
   --fuego-hondo: #a14320;
-  --linea: rgb(42 36 32 / 0.12);
+  /* Errores y avisos: aparte de --fuego, para que sigan leyéndose como error aunque una
+     propiedad use otro color en sus botones. */
+  --alerta: #c0522a;
+  --alerta-hondo: #a14320;
+  --linea: color-mix(in srgb, var(--tinta) 12%, transparent);
 }
 
 @theme inline {
@@ -34,6 +39,8 @@
   --color-volcan: var(--volcan);
   --color-fuego: var(--fuego);
   --color-fuego-hondo: var(--fuego-hondo);
+  --color-alerta: var(--alerta);
+  --color-alerta-hondo: var(--alerta-hondo);
   --color-linea: var(--linea);
 
   --font-sans: var(--font-texto);
@@ -50,9 +57,9 @@ body {
   background-image: repeating-linear-gradient(
     100deg,
     transparent 0 22px,
-    rgb(138 86 54 / 0.035) 22px 23px,
+    color-mix(in srgb, var(--madera) 3.5%, transparent) 22px 23px,
     transparent 23px 41px,
-    rgb(138 86 54 / 0.025) 41px 42px
+    color-mix(in srgb, var(--madera) 2.5%, transparent) 41px 42px
   );
 }
 
@@ -60,7 +67,7 @@ body {
    ".rdp-root.calendario-reserva" para ganarle al CSS de la librería, que se carga después. */
 .rdp-root.calendario-reserva {
   --rdp-accent-color: var(--lago);
-  --rdp-accent-background-color: rgb(29 74 90 / 0.12);
+  --rdp-accent-background-color: color-mix(in srgb, var(--lago) 12%, transparent);
   --rdp-today-color: var(--fuego);
   --rdp-day-height: 44px;
   --rdp-day-width: 44px;

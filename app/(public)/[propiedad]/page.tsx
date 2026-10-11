@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AvisoPendientes, BloqueoPublicacion } from "@/components/aviso-prueba";
 import { TarjetaCabana } from "@/components/cabana/tarjeta-cabana";
 import { EnlaceMiReserva } from "@/components/enlace-mi-reserva";
+import { IconoFlecha } from "@/components/iconos";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { Ubicacion } from "@/components/ubicacion";
 import { obtenerPropiedadPublica } from "@/lib/cabanas";
@@ -69,7 +71,14 @@ export default async function PaginaPropiedad({ params }: Props) {
 
   return (
     <main className="flex-1 pb-16">
-      <header className="mx-auto max-w-6xl px-5 pt-10 pb-8 text-center md:px-6 md:pt-16 md:pb-12">
+      <header className="relative mx-auto max-w-6xl px-5 pt-14 pb-8 text-center md:px-6 md:pt-16 md:pb-12">
+        <Link
+          href="/"
+          className="absolute top-3 left-3 inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-tinta-suave transition-colors hover:text-tinta md:left-6"
+        >
+          <IconoFlecha className="size-4 rotate-180" />
+          Todas las cabañas
+        </Link>
         <PerfilVolcan className="mx-auto h-12 w-60 md:h-14 md:w-72" />
         <h1 className="mt-5 font-display text-[2.4rem] leading-[1.05] font-semibold text-balance text-tinta md:text-6xl">
           {propiedad.nombre}

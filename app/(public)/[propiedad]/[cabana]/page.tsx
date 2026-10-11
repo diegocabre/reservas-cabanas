@@ -79,11 +79,11 @@ export default async function PaginaCabana({ params }: Props) {
           vertical={cabana.galeria.some((m) => m.tipo === "video")}
         />
         <Link
-          href={`/${cabana.propiedad.slug}`}
+          href={cabana.volver.href}
           className="absolute top-[calc(0.75rem+env(safe-area-inset-top))] left-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-nieve/90 px-3.5 py-2 text-sm font-semibold text-tinta shadow-sm backdrop-blur-sm transition-colors hover:bg-nieve md:top-9 md:left-9"
         >
           <IconoFlecha className="size-4 rotate-180" />
-          Todas las cabañas
+          {cabana.volver.texto}
         </Link>
       </div>
 

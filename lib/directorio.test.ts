@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { destinoPropiedad, propiedadesVisibles, type PropiedadDirectorio } from "@/lib/directorio";
+import { destinoPropiedad, propiedadesVisibles, volverDesdeCabana, type PropiedadDirectorio } from "@/lib/directorio";
 
 const p = (slug: string, nombre: string, cabanas: { slug: string; demo: boolean }[], bloqueo: string | null = null): PropiedadDirectorio => ({
   slug,
@@ -44,5 +44,21 @@ describe("propiedadesVisibles", () => {
   it("una propiedad con alguna cabaña real no cuenta como demo", () => {
     const lista = [p("mixta", "B mixta", [{ slug: "a", demo: true }, { slug: "b", demo: false }]), p("real", "C real", [{ slug: "c", demo: false }])];
     expect(propiedadesVisibles(lista).map((x) => x.slug)).toEqual(["mixta", "real"]);
+  });
+});
+
+describe("volverDesdeCabana", () => {
+  it("con una sola cabaña vuelve al directorio del sitio", () => {
+    expect(volverDesdeCabana({ slug: "maicolpue", nombre: "Cabaña Maicolpue", cabanasListadas: 1 })).toEqual({
+      href: "/",
+      texto: "Todas las cabañas",
+    });
+  });
+
+  it("con varias vuelve a las cabañas del dueño, con el nombre de la propiedad", () => {
+    expect(volverDesdeCabana({ slug: "lago-llanquihue", nombre: "Cabañas Lago Llanquihue", cabanasListadas: 2 })).toEqual({
+      href: "/lago-llanquihue",
+      texto: "Cabañas Lago Llanquihue",
+    });
   });
 });

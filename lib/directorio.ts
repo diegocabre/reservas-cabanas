@@ -24,3 +24,11 @@ export function propiedadesVisibles<T extends PropiedadDirectorio>(propiedades: 
 export function destinoPropiedad(p: Pick<PropiedadDirectorio, "slug" | "cabanas">): string {
   return p.cabanas.length === 1 ? `/${p.slug}/${p.cabanas[0].slug}` : `/${p.slug}`;
 }
+
+/**
+ * Botón "volver" de la página de una cabaña. Si el dueño tiene varias cabañas, vuelve a la lista de
+ * las suyas; si tiene una sola, esa lista no aporta nada y vuelve al directorio de todo el sitio.
+ */
+export function volverDesdeCabana(p: { slug: string; nombre: string; cabanasListadas: number }) {
+  return p.cabanasListadas > 1 ? { href: `/${p.slug}`, texto: p.nombre } : { href: "/", texto: "Todas las cabañas" };
+}

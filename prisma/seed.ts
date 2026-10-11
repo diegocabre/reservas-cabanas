@@ -3,6 +3,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { fotosDeGaleria, galeriaRegistrada } from "../lib/galeria";
 import { datosPendientes } from "../lib/publicacion";
+import { problemasDeContraste } from "../lib/tema";
+import { TEMA_MAICOLPUE } from "./temas";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -126,7 +128,11 @@ async function cargarMaicolpue() {
     politicaCancelacion: "Una vez hecha la reserva no hay devolución del dinero pagado.",
     // Horarios confirmados por el dueño el 2026-10-11.
     instruccionesLlegada: "Check-in desde las 14:00 y check-out hasta las 11:30.",
+    // Colores propios (prisma/temas.ts): costa y bosque, distintos de la paleta base.
+    tema: TEMA_MAICOLPUE,
   };
+  const contraste = problemasDeContraste(TEMA_MAICOLPUE);
+  if (contraste.length) throw new Error(`El tema de Maicolpue no tiene contraste suficiente: ${contraste.join("; ")}`);
   const propiedad = await db.propiedad.upsert({
     where: { slug: "maicolpue" },
     update: propiedadDatos,

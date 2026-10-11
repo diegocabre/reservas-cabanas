@@ -34,7 +34,7 @@ export function FormularioBusqueda() {
       </div>
 
       {estado.error && (
-        <p role="alert" className="rounded-2xl bg-fuego/10 px-4 py-3 text-sm font-semibold text-fuego-hondo">
+        <p role="alert" className="rounded-2xl bg-alerta/10 px-4 py-3 text-sm font-semibold text-alerta-hondo">
           {estado.error}
         </p>
       )}

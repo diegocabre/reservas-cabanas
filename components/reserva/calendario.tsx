@@ -89,7 +89,7 @@ export function Calendario({ checkIn, checkOut, ocupadas, hoy, ultimoDia, minNoc
         modifiersClassNames={{ ocupada: "dia-ocupado", corta: "dia-corto" }}
       />
       {aviso && (
-        <p role="alert" className="mt-2 text-center text-sm font-semibold text-fuego-hondo">
+        <p role="alert" className="mt-2 text-center text-sm font-semibold text-alerta-hondo">
           Estadía mínima: {minNoches} {minNoches === 1 ? "noche" : "noches"}
         </p>
       )}
