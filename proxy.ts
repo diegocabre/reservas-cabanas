@@ -1,9 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { requiereSesion, RUTA_INGRESAR } from "@/lib/acceso";
+import { requiereSesion, RUTA_LOGIN } from "@/lib/acceso";
 
 /**
- * Renueva la sesión de Supabase en cada visita al panel y manda a /admin/ingresar a quien no
+ * Renueva la sesión de Supabase en cada visita al panel y manda a /admin/login a quien no
  * tenga sesión. Es solo una revisión rápida: cada página y Server Action del panel vuelve a
  * verificar al admin y su propiedad con requerirAdmin() (lib/admin.ts).
  */
@@ -26,7 +26,7 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
 
   if (!data?.claims && requiereSesion(request.nextUrl.pathname)) {
-    const destino = NextResponse.redirect(new URL(RUTA_INGRESAR, request.url));
+    const destino = NextResponse.redirect(new URL(RUTA_LOGIN, request.url));
     for (const cookie of respuesta.cookies.getAll()) destino.cookies.set(cookie);
     return destino;
   }

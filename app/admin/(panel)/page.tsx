@@ -5,8 +5,13 @@ export default async function PaginaPanel() {
 
   return (
     <>
-      <h1 className="font-display text-3xl font-semibold">Hola</h1>
-      <p className="mt-2 text-tinta-suave">Este es el panel de {admin.propiedad.nombre}. Pronto verás aquí el resumen del día.</p>
+      <h1 className="font-display text-3xl font-semibold">Panel</h1>
+      <p className="mt-2 text-tinta-suave">Administras:</p>
+      <ul className="mt-2 list-disc pl-5">
+        {admin.propiedades.map((p) => (
+          <li key={p.id}>{p.nombre}</li>
+        ))}
+      </ul>
     </>
   );
 }

@@ -1,25 +1,33 @@
 // Reglas de acceso al panel del dueño (funciones puras, sin red ni base de datos).
 
-/** Páginas del panel que se abren sin sesión: pedir el link y recibirlo. */
-export const RUTAS_LIBRES_ADMIN = ["/admin/ingresar", "/admin/confirmar"] as const;
+export const RUTA_LOGIN = "/admin/login";
 
-export const RUTA_INGRESAR = "/admin/ingresar";
+/** Cierra la sesión y vuelve al login (la usa requerirAdmin cuando el usuario no es admin). */
+export const RUTA_SALIR = "/admin/salir";
 
-/** ¿Esta ruta necesita sesión iniciada? Solo el panel (/admin), salvo las rutas libres. */
+/** Páginas del panel que se abren sin sesión: pedir el link, recibirlo y salir. */
+export const RUTAS_LIBRES_ADMIN = [RUTA_LOGIN, "/admin/confirmar", RUTA_SALIR] as const;
+
+/** ¿Esta ruta necesita sesión iniciada? Todo /admin, salvo las rutas libres. */
 export function requiereSesion(ruta: string): boolean {
   const enPanel = ruta === "/admin" || ruta.startsWith("/admin/");
   const libre = RUTAS_LIBRES_ADMIN.some((r) => ruta === r || ruta.startsWith(`${r}/`));
   return enPanel && !libre;
 }
 
-/** Motivos por los que se vuelve a la página de ingreso, con el mensaje que ve el dueño. */
-export const MENSAJES_INGRESO = {
+/** Motivos por los que se vuelve al login, con el mensaje que ve el dueño. */
+export const MENSAJES_LOGIN = {
   link: "El link no es válido o ya venció. Pide uno nuevo.",
-  "sin-acceso": "Ese email no tiene acceso al panel. Si crees que es un error, escríbenos.",
+  "sin-acceso": "Sin acceso: ese email no administra ninguna propiedad. Si crees que es un error, escríbenos.",
 } as const;
 
-export type MotivoIngreso = keyof typeof MENSAJES_INGRESO;
+export type MotivoLogin = keyof typeof MENSAJES_LOGIN;
 
-export function mensajeIngreso(motivo: string | undefined): string | null {
-  return motivo && Object.hasOwn(MENSAJES_INGRESO, motivo) ? MENSAJES_INGRESO[motivo as MotivoIngreso] : null;
+export function mensajeLogin(motivo: string | undefined): string | null {
+  return motivo && Object.hasOwn(MENSAJES_LOGIN, motivo) ? MENSAJES_LOGIN[motivo as MotivoLogin] : null;
+}
+
+/** Login con un motivo conocido, ej. "/admin/login?error=sin-acceso". */
+export function urlLogin(motivo?: MotivoLogin): string {
+  return motivo ? `${RUTA_LOGIN}?error=${motivo}` : RUTA_LOGIN;
 }

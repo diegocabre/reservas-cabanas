@@ -4,7 +4,7 @@ import { z } from "zod";
 import { clienteSupabase } from "@/lib/supabase/servidor";
 import { urlDelSitio } from "@/lib/sitio";
 
-export type EstadoIngreso = { error?: string; enviadoA?: string; email?: string };
+export type EstadoLogin = { error?: string; enviadoA?: string; email?: string };
 
 const esquema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email({ error: "Revisa el email" })),
@@ -12,10 +12,10 @@ const esquema = z.object({
 
 /**
  * Envía el link mágico para entrar al panel. Solo a usuarios ya creados (shouldCreateUser: false):
- * los admins se registran con scripts/crear-admin.ts. Para no revelar qué emails tienen acceso,
+ * los admins se registran con npm run admin:registrar. Para no revelar qué emails tienen acceso,
  * la respuesta es la misma exista o no el usuario.
  */
-export async function pedirLink(_previo: EstadoIngreso, formData: FormData): Promise<EstadoIngreso> {
+export async function pedirLink(_previo: EstadoLogin, formData: FormData): Promise<EstadoLogin> {
   const email = String(formData.get("email") ?? "");
   const r = esquema.safeParse({ email });
   if (!r.success) return { email, error: r.error.issues[0].message };

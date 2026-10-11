@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { PerfilVolcan } from "@/components/perfil-volcan";
-import { mensajeIngreso } from "@/lib/acceso";
+import { mensajeLogin } from "@/lib/acceso";
 import { obtenerAdmin } from "@/lib/admin";
-import { FormularioIngreso } from "./formulario-ingreso";
+import { FormularioLogin } from "./formulario-login";
 
 export const metadata: Metadata = {
   title: "Ingresar al panel",
   robots: { index: false },
 };
 
-export default async function PaginaIngresar({ searchParams }: PageProps<"/admin/ingresar">) {
+export default async function PaginaLogin({ searchParams }: PageProps<"/admin/login">) {
   if (await obtenerAdmin()) redirect("/admin");
   const { error } = await searchParams;
 
@@ -22,7 +22,7 @@ export default async function PaginaIngresar({ searchParams }: PageProps<"/admin
         <p className="mt-2 text-tinta-suave">Te enviamos un link a tu email para entrar, sin contraseña.</p>
       </div>
       <div className="vetas mt-8 rounded-3xl border border-linea bg-nieve p-5">
-        <FormularioIngreso errorInicial={mensajeIngreso(typeof error === "string" ? error : undefined)} />
+        <FormularioLogin errorInicial={mensajeLogin(typeof error === "string" ? error : undefined)} />
       </div>
     </main>
   );

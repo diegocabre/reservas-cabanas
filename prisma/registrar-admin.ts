@@ -1,8 +1,9 @@
-// Da acceso al panel a un email: crea (o reutiliza) su usuario en Supabase Auth y lo registra
-// como Admin de una propiedad. El panel no tiene registro abierto: esta es la única forma de entrar.
+// Da acceso al panel a un email sobre una propiedad: crea (o reutiliza) su usuario en Supabase Auth
+// y lo registra como Admin de esa propiedad. Para darle varias propiedades, se corre una vez por
+// cada una. El panel no tiene registro abierto: esta es la única forma de entrar.
 //
-// Uso:   npx tsx scripts/crear-admin.ts <email> <slug-propiedad> [dueno|staff]
-// Ej.:   npx tsx scripts/crear-admin.ts dueno@gmail.com maicolpue
+// Uso:   npm run admin:registrar -- <email> <slug-propiedad> [dueno|staff]
+// Ej.:   npm run admin:registrar -- dueno@gmail.com maicolpue
 //
 // Necesita SUPABASE_SERVICE_ROLE_KEY en .env (Supabase → Project Settings → API keys).
 // Esa llave es secreta: solo se usa en este script local, nunca en la app ni en Vercel.
@@ -10,11 +11,13 @@ import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { db } from "@/lib/db";
 
+type AuthAdmin = ReturnType<typeof createClient>["auth"]["admin"];
+
 async function main() {
   const [emailArg, slug, rolArg = "dueno"] = process.argv.slice(2);
   const email = emailArg?.trim().toLowerCase();
   if (!email || !slug || !["dueno", "staff"].includes(rolArg)) {
-    throw new Error("Uso: npx tsx scripts/crear-admin.ts <email> <slug-propiedad> [dueno|staff]");
+    throw new Error("Uso: npm run admin:registrar -- <email> <slug-propiedad> [dueno|staff]");
   }
   const rol = rolArg as "dueno" | "staff";
 
@@ -26,21 +29,20 @@ async function main() {
   if (!propiedad) throw new Error(`No existe una propiedad con slug "${slug}"`);
 
   const supabase = createClient(url, llave, { auth: { persistSession: false, autoRefreshToken: false } });
-  const id = await idUsuario(supabase.auth.admin, email);
-
-  const otro = await db.admin.findUnique({ where: { email }, select: { id: true } });
-  if (otro && otro.id !== id) throw new Error(`Ya hay un Admin con el email ${email} y otro id de usuario. Revísalo a mano.`);
+  const usuarioId = await idUsuario(supabase.auth.admin, email);
 
   await db.admin.upsert({
-    where: { id },
-    create: { id, email, rol, propiedadId: propiedad.id },
-    update: { email, rol, propiedadId: propiedad.id },
+    where: { usuarioId_propiedadId: { usuarioId, propiedadId: propiedad.id } },
+    create: { usuarioId, propiedadId: propiedad.id, email, rol },
+    update: { email, rol },
   });
-  console.log(`✔ ${email} es ${rol} de "${propiedad.nombre}". Ya puede entrar en /admin/ingresar.`);
+  const total = await db.admin.count({ where: { usuarioId } });
+  console.log(`✔ ${email} es ${rol} de "${propiedad.nombre}" (administra ${total} ${total === 1 ? "propiedad" : "propiedades"}).`);
+  console.log("  Ya puede entrar en /admin/login.");
 }
 
 /** Id del usuario de Supabase Auth con ese email; lo crea (ya confirmado) si no existe. */
-async function idUsuario(auth: ReturnType<typeof createClient>["auth"]["admin"], email: string): Promise<string> {
+async function idUsuario(auth: AuthAdmin, email: string): Promise<string> {
   const creado = await auth.createUser({ email, email_confirm: true });
   if (creado.data.user) return creado.data.user.id;
 

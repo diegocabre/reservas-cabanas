@@ -1,13 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { pedirLink, type EstadoIngreso } from "./acciones";
+import { pedirLink, type EstadoLogin } from "./acciones";
 
 const claseInput =
   "w-full rounded-xl border border-linea bg-papel px-3.5 py-3 text-base text-tinta outline-none transition-colors focus:border-lago focus:ring-2 focus:ring-lago/20";
 
-export function FormularioIngreso({ errorInicial }: { errorInicial: string | null }) {
-  const [estado, accion, enviando] = useActionState<EstadoIngreso, FormData>(pedirLink, {});
+export function FormularioLogin({ errorInicial }: { errorInicial: string | null }) {
+  const [estado, accion, enviando] = useActionState<EstadoLogin, FormData>(pedirLink, {});
   const error = estado.error ?? (estado.enviadoA ? null : errorInicial);
 
   if (estado.enviadoA) {

@@ -1,13 +1,16 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
+import { urlLogin } from "@/lib/acceso";
+import { cargarAdmin } from "@/lib/panel-acceso";
 import { clienteSupabase } from "@/lib/supabase/servidor";
 
 /**
- * Destino del link mágico. Acepta los dos formatos de Supabase:
+ * Callback del link mágico. Acepta los dos formatos de Supabase:
  * - token_hash + type (plantilla de email personalizada): funciona aunque el link se abra en
  *   otro navegador, por ejemplo desde la app de Gmail en el celular.
  * - code (plantilla por defecto, PKCE): solo funciona en el navegador donde se pidió el link.
+ * Después verifica que el usuario administre al menos una propiedad; si no, cierra la sesión.
  * Siempre vuelve a /admin: no se acepta un destino desde la URL.
  */
 export async function GET(request: NextRequest) {
@@ -17,12 +20,17 @@ export async function GET(request: NextRequest) {
   const code = parametros.get("code");
 
   const supabase = await clienteSupabase();
-  let ok = false;
+  let usuarioId: string | undefined;
   if (tokenHash && tipo) {
-    ok = !(await supabase.auth.verifyOtp({ type: tipo, token_hash: tokenHash })).error;
+    usuarioId = (await supabase.auth.verifyOtp({ type: tipo, token_hash: tokenHash })).data.user?.id;
   } else if (code) {
-    ok = !(await supabase.auth.exchangeCodeForSession(code)).error;
+    usuarioId = (await supabase.auth.exchangeCodeForSession(code)).data.user?.id;
   }
+  if (!usuarioId) redirect(urlLogin("link"));
 
-  redirect(ok ? "/admin" : "/admin/ingresar?error=link");
+  if (!(await cargarAdmin(usuarioId))) {
+    await supabase.auth.signOut();
+    redirect(urlLogin("sin-acceso"));
+  }
+  redirect("/admin");
 }

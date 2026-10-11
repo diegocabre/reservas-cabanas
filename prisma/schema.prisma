@@ -97,16 +97,19 @@ model Propiedad {
   @@map("propiedad")
 }
 
+// Acceso de un usuario de Supabase Auth a una propiedad. Un usuario puede administrar varias
+// propiedades (una fila por propiedad); cada consulta del panel filtra por ellas (ver lib/panel-acceso.ts).
 model Admin {
-  // Mismo id que el usuario de Supabase Auth (auth.users.id), por eso no se genera.
-  id          String    @id @db.Uuid
-  propiedadId String    @map("propiedad_id") @db.Uuid
-  email       String    @unique
-  rol         RolAdmin  @default(dueno)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  id          String   @id @default(uuid()) @db.Uuid
+  usuarioId   String   @map("usuario_id") @db.Uuid // id del usuario de Supabase Auth (auth.users.id)
+  propiedadId String   @map("propiedad_id") @db.Uuid
+  email       String
+  rol         RolAdmin @default(dueno)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   propiedad Propiedad @relation(fields: [propiedadId], references: [id])
 
+  @@unique([usuarioId, propiedadId])
   @@index([propiedadId])
   @@map("admin")
 }

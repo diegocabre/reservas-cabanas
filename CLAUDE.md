@@ -42,15 +42,17 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 - Por ahora hay una sola cuenta de Mercado Pago (`MERCADOPAGO_ACCESS_TOKEN`). En producción con cabañas reales, cada propiedad debe cobrar en su propia cuenta: el dinero del huésped no debe pasar por Soluciones DyS.
 - Modo prueba (`enModoPrueba()` en `lib/sitio.ts`): activado por defecto mientras no haya pago en línea. Muestra avisos de prueba en el botón de reserva, el formulario y la confirmación, y marca las reservas con `[PRUEBA]` en `notas`. Se desactiva con `RESERVAS_MODO_PRUEBA=false`.
 - Origen de reserva: `web`, `airbnb`, `booking`, `manual`.
-- La base es multi-propiedad desde el inicio: toda cabaña pertenece a una `Propiedad`, y toda consulta del panel filtra por la propiedad del admin.
-- RLS activado en todas las tablas; nuevas tablas también deben activarlo en su migración (`alter table "x" enable row level security;`, sin políticas). Toda lectura y escritura pasa por Prisma en el servidor, que se conecta como `postgres` (dueño de las tablas, con `BYPASSRLS`); la API pública de Supabase (`anon`, `authenticated`) no tiene acceso a nada. Incluye `_prisma_migrations`.
+- La base es multi-propiedad desde el inicio: toda cabaña pertenece a una `Propiedad`. Un usuario puede administrar varias propiedades (una fila `Admin` por usuario y propiedad).
+- Panel del dueño (`/admin`): login con link mágico de Supabase Auth, sin registro abierto (los admins se crean con `npm run admin:registrar`). `proxy.ts` (el middleware de Next 16) solo revisa la sesión; cada página y Server Action llama a `requerirAdmin()` (`lib/admin.ts`). Toda consulta del panel va por `lib/panel-datos.ts`, con dos defensas: filtra por las propiedades del admin (`deSusPropiedades`) y corre dentro de `comoAdmin()` (`lib/panel-acceso.ts`), que usa el rol `panel_admin` para que Postgres aplique RLS.
+- RLS activado en todas las tablas; nuevas tablas también deben activarlo en su migración (`alter table "x" enable row level security;`). Toda lectura y escritura pasa por Prisma en el servidor, que se conecta como `postgres` (dueño de las tablas, con `BYPASSRLS`); la API pública de Supabase (`anon`, `authenticated`) no tiene acceso a nada y no tiene políticas. Incluye `_prisma_migrations`.
+- Única excepción: el rol `panel_admin` (sin `BYPASSRLS`, solo `postgres` puede asumirlo) tiene políticas que limitan cada fila a las propiedades de `app.usuario_id` (migración `admin_por_propiedad_y_rls_panel`). Una tabla nueva que use el panel necesita su `grant` y su política para `panel_admin`, y un caso en `tests/db/`.
 
 ## Modelo de datos
 
 Propiedad, Admin, Cabana, Tarifa, Temporada (sin uso), Reserva, Pago, Bloqueo, CalendarioExterno.
 
 - **Propiedad**: nombre, slug único, ubicacion, prefijo_codigo (único), ultimo_correlativo, whatsapp, email, abono_pct (default 50), abono_noches (opcional; si está, manda sobre abono_pct), politica_cancelacion, instrucciones_llegada
-- **Admin**: id (= id de usuario de Supabase Auth), propiedad_id, email, rol (`dueno` | `staff`)
+- **Admin**: usuario_id (= id de usuario de Supabase Auth), propiedad_id, email, rol (`dueno` | `staff`). Única por usuario + propiedad.
 - **Cabana**: propiedad_id, nombre, slug (único por propiedad), capacidad, dormitorios, descripcion, servicios (text[]), fotos (text[]), min_noches, activa, demo (cabaña de demostración)
 - **Tarifa**: cabana_id, personas_desde, personas_hasta (inclusivos), noches_desde, precio_noche (int). Única por cabaña + personas_desde + noches_desde.
 - **Temporada** (sin uso desde el piloto, queda para la etapa 2): cabana_id, nombre, desde, hasta (date), precio_noche (int), min_noches (opcional)
@@ -85,7 +87,8 @@ app/
   (public)/[propiedad]/[cabana]/page.tsx   página pública de la cabaña
   reservar/[propiedad]/[cabana]/           fechas + datos del huésped (el slug de cabaña solo es único dentro de su propiedad)
   reserva/[codigo]/page.tsx                confirmación
-  admin/                                   panel del dueño (protegido)
+  admin/login, admin/confirmar, admin/salir   login con link mágico, callback y salida
+  admin/(panel)/                           panel del dueño (protegido por proxy.ts y requerirAdmin)
   api/                                     webhooks (pagos) y cron; iCal en la etapa 2
 lib/
   db.ts            cliente Prisma
@@ -118,4 +121,6 @@ Sincronización iCal e integración con Airbnb y Booking: etapa 2, después del 
 - `npm run dev`: servidor local
 - `npx prisma migrate dev`: aplicar migraciones. En Prisma 7 no regenera el cliente: después corre `npx prisma generate` y reinicia `npm run dev`.
 - `npx prisma db seed`: cargar datos de ejemplo
-- `npm test`: tests
+- `npm test`: tests (funciones puras)
+- `npm run test:db`: tests contra la base de .env (RLS y acceso entre propiedades); crean y borran sus datos
+- `npm run admin:registrar -- <email> <slug-propiedad> [dueno|staff]`: da acceso al panel (necesita `SUPABASE_SERVICE_ROLE_KEY` en .env, solo local)

@@ -8,8 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
+    "admin:registrar": "tsx prisma/registrar-admin.ts",
     "probar:doble-reserva": "tsx scripts/probar-doble-reserva.ts",
     "test": "vitest run",
+    "test:db": "vitest run --config vitest.db.config.mts",
     "test:watch": "vitest"
   },
   "dependencies": {

@@ -1,41 +1,32 @@
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { RUTA_INGRESAR } from "@/lib/acceso";
-import { db } from "@/lib/db";
+import { RUTA_LOGIN, RUTA_SALIR } from "@/lib/acceso";
+import { cargarAdmin, type AdminSesion } from "@/lib/panel-acceso";
 import { clienteSupabase } from "@/lib/supabase/servidor";
 
-// Capa de acceso del panel. Toda página y Server Action de /admin parte con requerirAdmin() y
-// filtra sus consultas por admin.propiedad.id: cada dueño solo ve y cambia lo de su propiedad.
-// proxy.ts solo hace una revisión rápida; la verificación real es esta.
+// Sesión del panel. Toda página y Server Action de /admin parte con requerirAdmin() y pasa el
+// admin a las consultas de lib/panel-datos.ts, que filtran por sus propiedades y corren con RLS.
+// proxy.ts solo hace una revisión rápida de la sesión; la verificación real es esta.
 
-/** Admin con sesión iniciada, o null. Se calcula una vez por request (cache de React). */
-export const obtenerAdmin = cache(async () => {
+/** Id del usuario de Supabase Auth con sesión válida, o null. */
+export const usuarioDeLaSesion = cache(async (): Promise<string | null> => {
   const supabase = await clienteSupabase();
   const { data } = await supabase.auth.getClaims();
-  const id = data?.claims?.sub;
-  if (!id) return null;
-
-  return db.admin.findUnique({
-    where: { id },
-    select: { id: true, email: true, rol: true, propiedad: { select: { id: true, nombre: true, slug: true } } },
-  });
+  return data?.claims?.sub ?? null;
 });
 
-export type AdminPanel = NonNullable<Awaited<ReturnType<typeof obtenerAdmin>>>;
+/** Admin con sesión iniciada y al menos una propiedad, o null. Una vez por request. */
+export const obtenerAdmin = cache(async (): Promise<AdminSesion | null> => {
+  const usuarioId = await usuarioDeLaSesion();
+  return usuarioId ? cargarAdmin(usuarioId) : null;
+});
 
 /**
- * Admin con sesión, o redirige al ingreso. Un usuario de Supabase que no está en la tabla Admin
- * no entra a nada (la sesión existe, pero no tiene propiedad).
+ * Admin de la sesión, o redirige. Sin sesión: al login. Con sesión pero sin propiedades:
+ * a /admin/salir, que cierra la sesión y muestra "sin acceso".
  */
-export async function requerirAdmin(): Promise<AdminPanel> {
+export async function requerirAdmin(): Promise<AdminSesion> {
   const admin = await obtenerAdmin();
   if (admin) return admin;
-
-  const supabase = await clienteSupabase();
-  const { data } = await supabase.auth.getClaims();
-  if (data?.claims) {
-    await supabase.auth.signOut();
-    redirect(`${RUTA_INGRESAR}?error=sin-acceso`);
-  }
-  redirect(RUTA_INGRESAR);
+  redirect((await usuarioDeLaSesion()) ? `${RUTA_SALIR}?motivo=sin-acceso` : RUTA_LOGIN);
 }
