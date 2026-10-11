@@ -117,7 +117,7 @@ async function cargarMaicolpue() {
     // Ubicación exacta de la cabaña (link de Google Maps del dueño, 2026-10-11), sin parámetros de rastreo.
     urlMapa: "https://www.google.com/maps/search/?api=1&query=-40.5989838%2C-73.7373428",
     // Nunca un número o email inventado: podría ser de una persona real.
-    whatsapp: "+56944006839", // confirmado por el dueño el 2026-10-11
+    whatsapp: "+56941676239", // confirmado por el dueño el 2026-10-11
     email: "PENDIENTE",
     // Abono para reservar: 50 % del total (confirmado por el dueño el 2026-10-09). abono_noches sin usar.
     abonoPct: 50,
