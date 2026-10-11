@@ -23,6 +23,8 @@ const ACCION = {
   marcar_revisado: "Marcó el pago como revisado",
   crear_bloqueo: "Bloqueó fechas",
   eliminar_bloqueo: "Liberó fechas bloqueadas",
+  conectar_mercadopago: "Conectó Mercado Pago",
+  desconectar_mercadopago: "Desconectó Mercado Pago",
 } as const;
 
 const ORIGEN = { web: "Reserva web", airbnb: "Airbnb", booking: "Booking", manual: "Reserva manual" } as const;

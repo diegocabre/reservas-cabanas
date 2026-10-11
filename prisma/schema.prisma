@@ -69,6 +69,8 @@ enum AccionAuditoria {
   marcar_revisado
   crear_bloqueo
   eliminar_bloqueo
+  conectar_mercadopago
+  desconectar_mercadopago
 
   @@map("accion_auditoria")
 }
@@ -105,8 +107,10 @@ model Propiedad {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  admins  Admin[]
-  cabanas Cabana[]
+  admins     Admin[]
+  cabanas    Cabana[]
+  cuentaPago CuentaMercadoPago?
+  auditoria  Auditoria[]
 
   @@map("propiedad")
 }
@@ -245,6 +249,7 @@ model Auditoria {
   id            String          @id @default(uuid()) @db.Uuid
   reservaId     String?         @map("reserva_id") @db.Uuid
   cabanaId      String?         @map("cabana_id") @db.Uuid
+  propiedadId   String?         @map("propiedad_id") @db.Uuid // cambios de la propiedad (cuenta de Mercado Pago)
   bloqueoId     String?         @map("bloqueo_id") @db.Uuid
   usuarioId     String          @map("usuario_id") @db.Uuid // usuario de Supabase Auth que hizo el cambio
   email         String // email del admin en ese momento
@@ -254,13 +259,37 @@ model Auditoria {
   detalle       String? // motivo de cancelación, monto y medio del pago, fechas del bloqueo, etc.
   createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  reserva Reserva? @relation(fields: [reservaId], references: [id], onDelete: Cascade)
-  cabana  Cabana?  @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+  reserva   Reserva?   @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+  cabana    Cabana?    @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+  propiedad Propiedad? @relation(fields: [propiedadId], references: [id], onDelete: Cascade)
 
   @@index([reservaId, createdAt])
   @@index([cabanaId, createdAt])
+  @@index([propiedadId, createdAt])
   @@index([bloqueoId])
   @@map("auditoria")
+}
+
+// Cuenta de Mercado Pago conectada por el dueño (OAuth): los abonos se cobran con ella y el dinero
+// llega a su cuenta. Tokens cifrados (lib/cifrado.ts). RLS sin políticas y SIN permisos para
+// panel_admin: solo el servidor (postgres) los lee, después de verificar al admin.
+model CuentaMercadoPago {
+  id                  String   @id @default(uuid()) @db.Uuid
+  propiedadId         String   @unique @map("propiedad_id") @db.Uuid
+  mpUserId            String   @map("mp_user_id") // id del vendedor en Mercado Pago (llega en los avisos)
+  accessTokenCifrado  String   @map("access_token_cifrado")
+  refreshTokenCifrado String   @map("refresh_token_cifrado")
+  publicKey           String?  @map("public_key")
+  expiraEn            DateTime @map("expira_en") @db.Timestamptz(3)
+  produccion          Boolean // false: credenciales de prueba
+  conectadaPor        String   @map("conectada_por") // email del admin que la conectó
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  propiedad Propiedad @relation(fields: [propiedadId], references: [id], onDelete: Cascade)
+
+  @@index([mpUserId])
+  @@map("cuenta_mercadopago")
 }
 
 model Bloqueo {
