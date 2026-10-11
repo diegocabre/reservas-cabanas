@@ -2,7 +2,7 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { galeriaDeCabana } from "@/lib/galeria";
 import { precioDesde } from "@/lib/precios";
-import { bloqueoPublicacion, datosPendientes, SELECT_PUBLICACION } from "@/lib/publicacion";
+import { bloqueoPublicacion, bloqueoReserva, datosPendientes, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enModoPrueba } from "@/lib/sitio";
 
 /**
@@ -34,7 +34,7 @@ export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSl
     precioDesde: precioDesde(tarifas),
     galeria: galeriaDeCabana({ ...cabana, propiedadSlug: cabana.propiedad.slug }),
     pendientes: datosPendientes(cabana.propiedad),
-    bloqueo: bloqueoPublicacion(cabana.propiedad, enModoPrueba()),
+    bloqueo: bloqueoReserva(cabana, enModoPrueba()),
   };
 });
 
@@ -53,7 +53,8 @@ export const obtenerPropiedadPublica = cache(async (propiedadSlug: string) => {
       urlMapa: true,
       ...SELECT_PUBLICACION,
       cabanas: {
-        where: { activa: true },
+        // Fuera del modo prueba las cabañas demo no se listan: no existen.
+        where: { activa: true, ...(enModoPrueba() ? {} : { demo: false }) },
         orderBy: { createdAt: "asc" },
         select: {
           nombre: true,

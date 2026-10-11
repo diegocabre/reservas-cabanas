@@ -43,3 +43,24 @@ export const SELECT_PUBLICACION = {
   instruccionesLlegada: true,
   politicaCancelacion: true,
 } as const;
+
+// Las cabañas demo (cabana.demo) no existen: sirven para mostrar el sistema.
+export const MENSAJE_DEMO_SIN_RESERVAS = "Esta es una cabaña de demostración: no recibe reservas reales.";
+export const MENSAJE_DEMO_SIN_COBRO = "Esta es una cabaña de demostración: no se cobra ningún pago.";
+
+type CabanaPublicacion = { demo: boolean; propiedad: DatosPublicacion };
+
+/**
+ * Motivo por el que no se puede reservar la cabaña, o null si se puede.
+ * Fuera del modo prueba: las demo no reciben reservas y las propiedades con datos PENDIENTE tampoco.
+ */
+export function bloqueoReserva(c: CabanaPublicacion, modoPrueba: boolean): string | null {
+  if (c.demo && !modoPrueba) return MENSAJE_DEMO_SIN_RESERVAS;
+  return bloqueoPublicacion(c.propiedad, modoPrueba);
+}
+
+/** Motivo por el que no se puede cobrar el abono, o null si se puede. Las demo NUNCA cobran, ni en modo prueba. */
+export function bloqueoCobro(c: CabanaPublicacion, modoPrueba: boolean): string | null {
+  if (c.demo) return MENSAJE_DEMO_SIN_COBRO;
+  return bloqueoReserva(c, modoPrueba);
+}

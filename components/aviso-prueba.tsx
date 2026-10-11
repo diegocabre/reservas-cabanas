@@ -38,7 +38,7 @@ export function AvisoPendientes({ pendientes, className = "" }: { pendientes: st
 export function BloqueoPublicacion({ mensaje, className = "" }: { mensaje: string; className?: string }) {
   return (
     <div role="alert" className={`rounded-3xl border border-linea bg-nieve px-5 py-6 text-center ${className}`}>
-      <p className="font-display text-xl font-semibold text-tinta">Cabaña en preparación</p>
+      <p className="font-display text-xl font-semibold text-tinta">Reservas no disponibles</p>
       <p className="mt-2 text-sm text-tinta-suave">{mensaje}</p>
     </div>
   );

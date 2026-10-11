@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { bloqueoPublicacion, datosPendientes, type DatosPublicacion } from "./publicacion";
+import {
+  bloqueoCobro,
+  bloqueoPublicacion,
+  bloqueoReserva,
+  datosPendientes,
+  MENSAJE_DEMO_SIN_COBRO,
+  MENSAJE_DEMO_SIN_RESERVAS,
+  type DatosPublicacion,
+} from "./publicacion";
 
 const completa: DatosPublicacion = {
   ubicacion: "Puerto Varas · Lago Llanquihue",
@@ -53,5 +61,33 @@ describe("bloqueoPublicacion", () => {
 
   it("en modo prueba deja probar con datos de ejemplo", () => {
     expect(bloqueoPublicacion(maicolpue, true)).toBeNull();
+  });
+});
+
+describe("cabañas demo", () => {
+  const demo = { demo: true, propiedad: completa };
+  const real = { demo: false, propiedad: completa };
+
+  it("nunca cobran, ni en modo prueba ni fuera de él", () => {
+    expect(bloqueoCobro(demo, true)).toBe(MENSAJE_DEMO_SIN_COBRO);
+    expect(bloqueoCobro(demo, false)).toBe(MENSAJE_DEMO_SIN_COBRO);
+  });
+
+  it("solo se pueden reservar en modo prueba (para mostrar el sistema)", () => {
+    expect(bloqueoReserva(demo, true)).toBeNull();
+    expect(bloqueoReserva(demo, false)).toBe(MENSAJE_DEMO_SIN_RESERVAS);
+  });
+
+  it("una cabaña real con datos completos reserva y cobra", () => {
+    expect(bloqueoReserva(real, false)).toBeNull();
+    expect(bloqueoCobro(real, false)).toBeNull();
+    expect(bloqueoCobro(real, true)).toBeNull();
+  });
+
+  it("una cabaña real con datos PENDIENTE solo reserva y cobra en modo prueba", () => {
+    const pendiente = { demo: false, propiedad: maicolpue };
+    expect(bloqueoCobro(pendiente, true)).toBeNull();
+    expect(bloqueoCobro(pendiente, false)).toMatch(/faltan datos por confirmar/);
+    expect(bloqueoReserva(pendiente, false)).toMatch(/faltan datos por confirmar/);
   });
 });

@@ -5,7 +5,7 @@ import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { hoyEnChile, ocultarEmail } from "@/lib/formato";
 import { enModoPrueba } from "@/lib/sitio";
 import { aFechaIso, calcularAbono, calcularPrecio, ErrorPrecio, type TarifaPrecio } from "@/lib/precios";
-import { bloqueoPublicacion, SELECT_PUBLICACION } from "@/lib/publicacion";
+import { bloqueoReserva, SELECT_PUBLICACION } from "@/lib/publicacion";
 import type { DatosReserva } from "@/lib/reserva-esquema";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -40,6 +40,7 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
       capacidad: true,
       minNoches: true,
       fotos: true,
+      demo: true,
       propiedad: { select: { nombre: true, slug: true, abonoPct: true, abonoNoches: true, ...SELECT_PUBLICACION } },
       tarifas: { select: SELECT_TARIFA },
       reservas: {
@@ -68,7 +69,7 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
     },
     hoy,
     ultimoDia: sumarMeses(hoy, MESES_RESERVABLES),
-    bloqueo: bloqueoPublicacion(propiedad, enModoPrueba()),
+    bloqueo: bloqueoReserva({ demo: cabana.demo, propiedad }, enModoPrueba()),
     ocupadas: [...ocupadas].filter((n) => n >= hoy).sort(),
   };
 }
@@ -114,13 +115,14 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
       nombre: true,
       capacidad: true,
       minNoches: true,
+      demo: true,
       propiedad: { select: { id: true, abonoPct: true, abonoNoches: true, ...SELECT_PUBLICACION } },
       tarifas: { select: SELECT_TARIFA },
     },
   });
   if (!cabana) return { ok: false, error: "Esta cabaña no está disponible para reservas." };
 
-  const bloqueo = bloqueoPublicacion(cabana.propiedad, enModoPrueba());
+  const bloqueo = bloqueoReserva(cabana, enModoPrueba());
   if (bloqueo) return { ok: false, error: bloqueo };
 
   // Precio y abono se recalculan aquí con las tarifas de la base; el navegador solo los muestra.
@@ -247,6 +249,7 @@ export async function obtenerReservaPublica(codigo: string) {
           nombre: true,
           slug: true,
           fotos: true,
+          demo: true,
           propiedad: {
             select: {
               nombre: true,

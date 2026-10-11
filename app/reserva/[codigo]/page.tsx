@@ -79,6 +79,14 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
                 Mercado Pago lo está revisando. Apenas se apruebe, tu reserva quedará confirmada en esta página.
               </p>
             </>
+          ) : cabana.demo ? (
+            <>
+              <p className="font-semibold">Esta es una cabaña de demostración: no se cobra ningún pago.</p>
+              <p className="mt-1 text-sm text-tinta-suave">
+                En una cabaña real tendrías hasta las <strong>{formatearHora(reserva.expiraEn)}</strong> para pagar el
+                abono de <strong>{formatearCLP(reserva.abono)}</strong>. Después de esa hora las fechas se liberan.
+              </p>
+            </>
           ) : pagoEnLineaDisponible() ? (
             <>
               <p className="font-semibold">
