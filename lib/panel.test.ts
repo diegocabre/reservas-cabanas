@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enCasa, llegadas, ocupacion, ocupacionMes, ocupacionPorDia, porRevisarPago, salidas, saldosPorCobrar, type ReservaPanel } from "./panel";
+import { bloqueosEnPeriodo, enCasa, llegadas, ocupacion, ocupacionMes, ocupacionPorDia, porRevisarPago, salidas, saldosPorCobrar, type ReservaPanel } from "./panel";
 
 const r = (codigo: string, cabana: string, checkIn: string, checkOut: string, extra: Partial<ReservaPanel> = {}): ReservaPanel => ({
   codigo,
@@ -55,7 +55,7 @@ describe("saldosPorCobrar", () => {
 describe("ocupacionMes", () => {
   it("cuenta noches ocupadas dentro del mes sobre las disponibles", () => {
     // Octubre: 31 días × 2 cabañas = 62 noches. Ocupadas: 3 + 3 + 3 + 2 = 11 (las pendientes y canceladas no cuentan).
-    expect(ocupacionMes(reservas, "2026-10", 2)).toEqual({ nochesOcupadas: 11, nochesDisponibles: 62, porcentaje: 18 });
+    expect(ocupacionMes(reservas, "2026-10", 2)).toEqual({ nochesOcupadas: 11, nochesBloqueadas: 0, nochesDisponibles: 62, porcentaje: 18 });
   });
 
   it("corta las estadías que cruzan de mes", () => {
@@ -87,7 +87,7 @@ describe("casos borde: llegada y salida el mismo día", () => {
   });
 
   it("el día de recambio cuenta una sola noche ocupada, no dos", () => {
-    expect(ocupacion(recambio, hoy, 1, 1)).toEqual({ nochesOcupadas: 1, nochesDisponibles: 1, porcentaje: 100 });
+    expect(ocupacion(recambio, hoy, 1, 1)).toEqual({ nochesOcupadas: 1, nochesBloqueadas: 0, nochesDisponibles: 1, porcentaje: 100 });
   });
 
   it("una estadía de una noche sale al día siguiente de llegar", () => {
@@ -114,12 +114,12 @@ describe("casos borde: reserva que cruza el cambio de mes", () => {
   });
 
   it("los próximos 30 días cuentan todas sus noches aunque cambie el mes", () => {
-    expect(ocupacion(cruzada, "2026-10-20", 30, 1)).toEqual({ nochesOcupadas: 3, nochesDisponibles: 30, porcentaje: 10 });
+    expect(ocupacion(cruzada, "2026-10-20", 30, 1)).toEqual({ nochesOcupadas: 3, nochesBloqueadas: 0, nochesDisponibles: 30, porcentaje: 10 });
   });
 
   it("un periodo que empieza a mitad de la estadía cuenta solo las noches desde ese día", () => {
     expect(ocupacion(cruzada, "2026-10-31", 30, 1).nochesOcupadas).toBe(2);
-    expect(ocupacion(cruzada, "2026-11-01", 30, 2)).toEqual({ nochesOcupadas: 1, nochesDisponibles: 60, porcentaje: 2 });
+    expect(ocupacion(cruzada, "2026-11-01", 30, 2)).toEqual({ nochesOcupadas: 1, nochesBloqueadas: 0, nochesDisponibles: 60, porcentaje: 2 });
   });
 
   it("el periodo termina exclusivo: la noche del día 30 ya no cuenta", () => {
@@ -158,11 +158,41 @@ describe("ocupacionPorDia", () => {
       r("LA-D", "Arrayanes", "2026-10-29", "2026-10-30", { estado: "cancelada" }),
     ];
     expect(ocupacionPorDia(lista, "2026-10-29", 5)).toEqual([
-      { fecha: "2026-10-29", ocupadas: 0 },
-      { fecha: "2026-10-30", ocupadas: 1 },
-      { fecha: "2026-10-31", ocupadas: 2 },
-      { fecha: "2026-11-01", ocupadas: 2 },
-      { fecha: "2026-11-02", ocupadas: 0 },
+      { fecha: "2026-10-29", ocupadas: 0, bloqueadas: 0 },
+      { fecha: "2026-10-30", ocupadas: 1, bloqueadas: 0 },
+      { fecha: "2026-10-31", ocupadas: 2, bloqueadas: 0 },
+      { fecha: "2026-11-01", ocupadas: 2, bloqueadas: 0 },
+      { fecha: "2026-11-02", ocupadas: 0, bloqueadas: 0 },
     ]);
+  });
+});
+
+describe("bloqueos en el resumen", () => {
+  const bloqueos = [
+    { cabana: "Maicolpue", desde: "2026-10-28", hasta: "2026-11-02", motivo: "airbnb" }, // cruza de mes
+    { cabana: "Maicolpue", desde: "2026-12-01", hasta: "2026-12-03", motivo: "mantencion" },
+    { cabana: "Maicolpue", desde: "2026-10-01", hasta: "2026-10-05", motivo: "uso_personal" }, // ya pasó
+  ];
+
+  it("lista los bloqueos que tocan el periodo, incluso si empezaron antes", () => {
+    // 30 días desde el 30 de oct = noches del 30 de oct al 28 de nov: diciembre queda fuera.
+    expect(bloqueosEnPeriodo(bloqueos, "2026-10-30", 30).map((b) => b.motivo)).toEqual(["airbnb"]);
+    expect(bloqueosEnPeriodo(bloqueos, "2026-10-30", 40).map((b) => b.motivo)).toEqual(["airbnb", "mantencion"]);
+    expect(bloqueosEnPeriodo(bloqueos, "2026-10-05", 1)).toEqual([]); // el día que se libera no cuenta
+  });
+
+  it("cuenta las noches bloqueadas aparte de las ocupadas por reservas", () => {
+    const reservas = [r("MA-X", "Maicolpue", "2026-11-05", "2026-11-07")];
+    expect(ocupacion(reservas, "2026-10-30", 30, 1, bloqueos)).toEqual({
+      nochesOcupadas: 2,
+      nochesBloqueadas: 3, // 30, 31 oct y 1 nov (el bloqueo de diciembre cae fuera del periodo)
+      nochesDisponibles: 30,
+      porcentaje: 7,
+    });
+  });
+
+  it("marca las noches bloqueadas día por día", () => {
+    const dias = ocupacionPorDia([], "2026-10-31", 3, bloqueos);
+    expect(dias.map((x) => x.bloqueadas)).toEqual([1, 1, 0]);
   });
 });

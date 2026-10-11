@@ -21,6 +21,8 @@ const ACCION = {
   cancelar: "Canceló la reserva",
   registrar_pago: "Registró un pago",
   marcar_revisado: "Marcó el pago como revisado",
+  crear_bloqueo: "Bloqueó fechas",
+  eliminar_bloqueo: "Liberó fechas bloqueadas",
 } as const;
 
 const ORIGEN = { web: "Reserva web", airbnb: "Airbnb", booking: "Booking", manual: "Reserva manual" } as const;
@@ -198,7 +200,7 @@ export function VistaDetalle({ r, hecho, hoy }: { r: DetalleReserva; hecho?: str
               <li key={a.id} className="px-4 py-3 text-sm">
                 <p className="font-semibold">
                   {ACCION[a.accion]}
-                  {a.estadoAntes !== a.estadoDespues && (
+                  {a.estadoAntes && a.estadoDespues && a.estadoAntes !== a.estadoDespues && (
                     <span className="font-normal text-tinta-suave">
                       {" "}
                       ({NOMBRE_ESTADO[a.estadoAntes].toLowerCase()} a {NOMBRE_ESTADO[a.estadoDespues].toLowerCase()})

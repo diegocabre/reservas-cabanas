@@ -67,6 +67,8 @@ enum AccionAuditoria {
   cancelar
   registrar_pago
   marcar_revisado
+  crear_bloqueo
+  eliminar_bloqueo
 
   @@map("accion_auditoria")
 }
@@ -147,6 +149,7 @@ model Cabana {
   tarifas             Tarifa[]
   reservas            Reserva[]
   bloqueos            Bloqueo[]
+  auditoria           Auditoria[]
   calendariosExternos CalendarioExterno[]
 
   @@unique([propiedadId, slug])
@@ -235,21 +238,28 @@ model Pago {
 }
 
 // Registro de cada cambio que hace un admin en el panel: quién, cuándo y qué. Solo se agrega:
-// el rol del panel puede insertar y leer, nunca editar ni borrar (ver la migración).
+// el rol del panel puede insertar y leer, nunca editar ni borrar (ver las migraciones).
+// Cambios de una reserva: reserva_id. Bloqueos: cabana_id y bloqueo_id (sin FK: el registro queda
+// aunque el bloqueo se elimine).
 model Auditoria {
   id            String          @id @default(uuid()) @db.Uuid
-  reservaId     String          @map("reserva_id") @db.Uuid
+  reservaId     String?         @map("reserva_id") @db.Uuid
+  cabanaId      String?         @map("cabana_id") @db.Uuid
+  bloqueoId     String?         @map("bloqueo_id") @db.Uuid
   usuarioId     String          @map("usuario_id") @db.Uuid // usuario de Supabase Auth que hizo el cambio
   email         String // email del admin en ese momento
   accion        AccionAuditoria
-  estadoAntes   EstadoReserva   @map("estado_antes")
-  estadoDespues EstadoReserva   @map("estado_despues")
-  detalle       String? // motivo de cancelación, monto y medio del pago, etc.
+  estadoAntes   EstadoReserva?  @map("estado_antes")
+  estadoDespues EstadoReserva?  @map("estado_despues")
+  detalle       String? // motivo de cancelación, monto y medio del pago, fechas del bloqueo, etc.
   createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  reserva Reserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+  reserva Reserva? @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+  cabana  Cabana?  @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
 
   @@index([reservaId, createdAt])
+  @@index([cabanaId, createdAt])
+  @@index([bloqueoId])
   @@map("auditoria")
 }
 

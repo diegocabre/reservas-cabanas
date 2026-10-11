@@ -71,7 +71,7 @@ export async function datosResumen(admin: AdminSesion, propiedadId: string, hoy:
   if (!admin.propiedades.some((p) => p.id === propiedadId)) return null;
 
   const filtro = deSusPropiedades(admin, propiedadId);
-  const { reservas, cabanasActivas, propiedad } = await comoAdmin(admin, async (tx) => ({
+  const { reservas, cabanasActivas, propiedad, bloqueos } = await comoAdmin(admin, async (tx) => ({
     reservas: await tx.reserva.findMany({
       where: {
         ...filtro,
@@ -87,13 +87,22 @@ export async function datosResumen(admin: AdminSesion, propiedadId: string, hoy:
       select: SELECT_RESERVA,
     }),
     cabanasActivas: await tx.cabana.count({ where: { propiedadId, activa: true } }),
+    bloqueos: await tx.bloqueo.findMany({
+      where: { ...filtro, desde: { lt: d(sumarDias(hoy, DIAS_RESUMEN)) }, hasta: { gt: d(hoy) } },
+      select: { id: true, desde: true, hasta: true, motivo: true, cabana: { select: { nombre: true } } },
+    }),
     propiedad: await tx.propiedad.findUniqueOrThrow({
       where: { id: propiedadId },
       select: { nombre: true, slug: true, ...SELECT_PUBLICACION },
     }),
   }));
 
-  return { propiedad, cabanasActivas, reservas: reservas.map(aReservaPanel) };
+  return {
+    propiedad,
+    cabanasActivas,
+    reservas: reservas.map(aReservaPanel),
+    bloqueos: bloqueos.map((b) => ({ id: b.id, cabana: b.cabana.nombre, desde: aFechaIso(b.desde), hasta: aFechaIso(b.hasta), motivo: b.motivo })),
+  };
 }
 
 /** Reserva de la base → forma que usan los cálculos de lib/panel.ts. */

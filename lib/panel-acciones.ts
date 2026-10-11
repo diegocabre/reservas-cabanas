@@ -4,7 +4,7 @@
 // 3. aplica el cambio y escribe la auditoría (quién, cuándo, qué).
 // Sin imports de Next: las Server Actions de app/admin las envuelven; los tests las llaman directo.
 
-import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
+import { cerrojoCabana, codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import {
   marcarPagoRevisado,
   NOMBRE_MEDIO,
@@ -20,7 +20,7 @@ import { formatearCLP, formatearFechaLarga } from "@/lib/formato";
 import { comoAdmin, idsPropiedades, type AdminSesion, type TxPanel } from "@/lib/panel-acceso";
 
 /** Error con mensaje para el dueño: corta la transacción (rollback) y se muestra tal cual. */
-class ErrorAccion extends Error {}
+export class ErrorAccion extends Error {}
 
 type FilaReserva = {
   id: string;
@@ -63,7 +63,7 @@ function auditar(
 }
 
 /** Corre la acción y traduce los errores esperables a un mensaje para el dueño. */
-async function ejecutar<T extends object>(admin: AdminSesion, fn: (tx: TxPanel) => Promise<T>): Promise<Resultado<T>> {
+export async function ejecutar<T extends object>(admin: AdminSesion, fn: (tx: TxPanel) => Promise<T>): Promise<Resultado<T>> {
   try {
     return { ok: true, ...(await comoAdmin(admin, fn)) };
   } catch (e) {
@@ -85,6 +85,7 @@ export function confirmarReserva(admin: AdminSesion, codigo: string) {
     const r = await bloquearReserva(tx, admin, codigo);
     const t = validarTransicion("confirmar", r.estado);
     if (!t.ok) throw new ErrorAccion(t.error);
+    await cerrojoCabana(tx, r.cabana_id);
 
     const bloqueos = await tx.bloqueo.count({
       where: { cabanaId: r.cabana_id, desde: { lt: r.check_out }, hasta: { gt: r.check_in } },

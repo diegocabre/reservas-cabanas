@@ -1,6 +1,18 @@
 import Link from "next/link";
 import { formatearCLP, formatearDiaLargo, formatearFechaCorta } from "@/lib/formato";
-import { enCasa, llegadas, ocupacion, ocupacionPorDia, porRevisarPago, salidas, saldosPorCobrar, type ReservaPanel } from "@/lib/panel";
+import { describirRango, nombreMotivo } from "@/lib/bloqueos";
+import {
+  bloqueosEnPeriodo,
+  enCasa,
+  llegadas,
+  ocupacion,
+  ocupacionPorDia,
+  porRevisarPago,
+  salidas,
+  saldosPorCobrar,
+  type BloqueoPanel,
+  type ReservaPanel,
+} from "@/lib/panel";
 import type { PropiedadAdmin } from "@/lib/panel-acceso";
 import { DIAS_RESUMEN } from "@/lib/panel-datos";
 import { MARCA_REVISAR } from "@/lib/pagos";
@@ -16,13 +28,15 @@ export interface PropsResumen {
   pendientes: string[];
   modoPrueba: boolean;
   reservas: ReservaPanel[];
+  /** Bloqueos de fechas de la propiedad que tocan los próximos días. */
+  bloqueos: BloqueoPanel[];
   cabanasActivas: number;
   propiedades: Pick<PropiedadAdmin, "id" | "nombre" | "slug">[];
   elegidaId: string;
 }
 
 /** Resumen del día de una propiedad, a partir de datos ya cargados y filtrados por el servidor. */
-export function VistaResumen({ hoy, propiedad, pendientes, modoPrueba, reservas, cabanasActivas, propiedades, elegidaId }: PropsResumen) {
+export function VistaResumen({ hoy, propiedad, pendientes, modoPrueba, reservas, bloqueos, cabanasActivas, propiedades, elegidaId }: PropsResumen) {
   const revisar = porRevisarPago(reservas);
   const llegaHoy = llegadas(reservas, hoy);
   const seVaHoy = salidas(reservas, hoy);
@@ -34,6 +48,7 @@ export function VistaResumen({ hoy, propiedad, pendientes, modoPrueba, reservas,
   const variasCabanas = cabanasActivas > 1;
   const conCabana = (r: ReservaPanel, texto: string) => (variasCabanas ? `${r.cabana}, ${texto}` : texto);
   const personas = (n: number) => `${n} ${n === 1 ? "persona" : "personas"}`;
+  const bloqueosProximos = bloqueosEnPeriodo(bloqueos, hoy, DIAS_RESUMEN);
 
   return (
     <>
@@ -169,10 +184,31 @@ export function VistaResumen({ hoy, propiedad, pendientes, modoPrueba, reservas,
 
       <Seccion titulo={`Próximos ${DIAS_RESUMEN} días`}>
         <TiraOcupacion
-          dias={ocupacionPorDia(reservas, hoy, DIAS_RESUMEN)}
+          dias={ocupacionPorDia(reservas, hoy, DIAS_RESUMEN, bloqueos)}
           cabanas={cabanasActivas}
-          resumen={ocupacion(reservas, hoy, DIAS_RESUMEN, cabanasActivas)}
+          resumen={ocupacion(reservas, hoy, DIAS_RESUMEN, cabanasActivas, bloqueos)}
         />
+      </Seccion>
+
+      <Seccion titulo="Fechas bloqueadas" cantidad={bloqueosProximos.length}>
+        {bloqueosProximos.length ? (
+          <Lista>
+            {bloqueosProximos.map((b) => (
+              <li key={b.id ?? `${b.cabana}-${String(b.desde)}`} className="px-4 py-3">
+                <p className="font-semibold">{nombreMotivo(b.motivo)}</p>
+                <p className="text-sm text-tinta-suave">
+                  {variasCabanas && `${b.cabana}, `}
+                  {describirRango(b, formatearFechaCorta)}
+                </p>
+              </li>
+            ))}
+          </Lista>
+        ) : (
+          <Vacio>No hay fechas bloqueadas en los próximos {DIAS_RESUMEN} días.</Vacio>
+        )}
+        <Link href="/admin/bloqueos" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-lago">
+          Bloquear o liberar fechas
+        </Link>
       </Seccion>
     </>
   );

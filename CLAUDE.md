@@ -43,6 +43,8 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 - Por ahora hay una sola cuenta de Mercado Pago (`MERCADOPAGO_ACCESS_TOKEN`). En producción con cabañas reales, cada propiedad debe cobrar en su propia cuenta: el dinero del huésped no debe pasar por Soluciones DyS.
 - Modo prueba (`enModoPrueba()` en `lib/sitio.ts`): activado por defecto mientras no haya pago en línea. Muestra avisos de prueba en el botón de reserva, el formulario y la confirmación, y marca las reservas con `[PRUEBA]` en `notas`. Se desactiva con `RESERVAS_MODO_PRUEBA=false`.
 - Origen de reserva: `web`, `airbnb`, `booking`, `manual`.
+- Bloqueos del dueño (`/admin/bloqueos`, `lib/panel-bloqueos.ts`, reglas puras en `lib/bloqueos.ts`): el dueño elige primera y última noche (inclusive); se guarda `[desde, hasta)` con hasta = última + 1. Motivo: `airbnb`, `booking`, `mantencion`, `uso_personal`. No se crea si choca con una reserva confirmada o pendiente vigente (se muestran cuáles) ni con otro bloqueo. Se pueden eliminar los manuales; todo queda en la auditoría.
+- Cerrojo por cabaña (`cerrojoCabana` en `lib/errores-db.ts`, `pg_advisory_xact_lock`): lo toman la reserva web, la confirmación del dueño y la creación de bloqueos antes de revisar disponibilidad, para que un bloqueo y una reserva simultáneos no pasen los dos. Todo código nuevo que revise disponibilidad y luego escriba debe tomarlo.
 - Tema visual por propiedad (`propiedad.tema`, `lib/tema.ts`): colores propios que sobrescriben las variables de `app/globals.css` en las páginas de la propiedad, sus cabañas, reservar y la confirmación (`<TemaPropiedad>`). Null = paleta base. Todo tema debe pasar `problemasDeContraste` (WCAG AA 4,5:1); los errores usan `alerta`, no `fuego`, para seguir leyéndose como error. Ningún color fijo en los componentes públicos: siempre los tokens.
 - La base es multi-propiedad desde el inicio: toda cabaña pertenece a una `Propiedad`. Un usuario puede administrar varias propiedades (una fila `Admin` por usuario y propiedad).
 - Panel del dueño (`/admin`): login con link mágico de Supabase Auth, sin registro abierto (los admins se crean con `npm run admin:registrar`). `proxy.ts` (el middleware de Next 16) solo revisa la sesión; cada página y Server Action llama a `requerirAdmin()` (`lib/admin.ts`). Toda consulta del panel va por `lib/panel-datos.ts`, con dos defensas: filtra por las propiedades del admin (`deSusPropiedades`) y corre dentro de `comoAdmin()` (`lib/panel-acceso.ts`), que usa el rol `panel_admin` para que Postgres aplique RLS.
@@ -60,7 +62,7 @@ Propiedad, Admin, Cabana, Tarifa, Temporada (sin uso), Reserva, Pago, Auditoria,
 - **Temporada** (sin uso desde el piloto, queda para la etapa 2): cabana_id, nombre, desde, hasta (date), precio_noche (int), min_noches (opcional)
 - **Reserva**: codigo legible único (ej. `PV-0142`), cabana_id, check_in, check_out, adultos, ninos, huesped_nombre, huesped_email, huesped_telefono, huesped_rut (opcional), total, abono (int), estado, origen, expira_en (opcional), notas, timestamps
 - **Pago**: reserva_id, proveedor (`mercadopago` | `flow` | `transferencia` | `efectivo`), monto, estado (`pendiente` | `aprobado` | `rechazado`), ref_externa, pagado_en
-- **Auditoria**: reserva_id, usuario_id, email, accion (`confirmar` | `cancelar` | `registrar_pago` | `marcar_revisado`), estado_antes, estado_despues, detalle, created_at. Solo se agrega (RLS: `panel_admin` inserta a su propio nombre y lee; no edita ni borra).
+- **Auditoria**: reserva_id o cabana_id (+ bloqueo_id sin FK), usuario_id, email, accion (`confirmar` | `cancelar` | `registrar_pago` | `marcar_revisado` | `crear_bloqueo` | `eliminar_bloqueo`), estado_antes, estado_despues, detalle, created_at. Solo se agrega (RLS: `panel_admin` inserta a su propio nombre y lee; no edita ni borra).
 - **Bloqueo**: cabana_id, desde, hasta, motivo, origen (`manual` | `ical`), uid_externo (opcional)
 - **CalendarioExterno** (etapa 2, sin usar en el MVP): cabana_id, plataforma (`airbnb` | `booking`), url_ical, ultimo_sync
 
@@ -93,6 +95,7 @@ app/
   admin/login, admin/confirmar, admin/salir   login con link mágico, callback y salida
   admin/(panel)/                           panel del dueño (protegido por proxy.ts y requerirAdmin): resumen del día
   admin/(panel)/reservas/[codigo]/         lista con filtros y detalle con acciones
+  admin/(panel)/bloqueos/                  bloquear y liberar fechas
   api/                                     webhooks (pagos) y cron; iCal en la etapa 2
 lib/
   db.ts            cliente Prisma

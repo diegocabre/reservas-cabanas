@@ -63,14 +63,21 @@ export function saldosPorCobrar(reservas: ReservaPanel[]): (ReservaPanel & { sal
  * confirmadas / noches disponibles (cabañas activas × días). Porcentaje entero de 0 a 100.
  * Las estadías que empiezan antes o terminan después del periodo cuentan solo sus noches dentro.
  */
-export function ocupacion(reservas: ReservaPanel[], desde: string, dias: number, cabanasActivas: number) {
+export function ocupacion(
+  reservas: ReservaPanel[],
+  desde: string,
+  dias: number,
+  cabanasActivas: number,
+  bloqueos: BloqueoPanel[] = [],
+) {
   const hasta = sumarDias(desde, dias);
-  const ocupadas = reservas
-    .filter(activa)
-    .reduce((n, r) => n + nochesEntre(r.checkIn, r.checkOut).filter((d) => d >= desde && d < hasta).length, 0);
+  const dentro = (a: Fecha, b: Fecha) => nochesEntre(a, b).filter((d) => d >= desde && d < hasta).length;
+  const ocupadas = reservas.filter(activa).reduce((n, r) => n + dentro(r.checkIn, r.checkOut), 0);
   const disponibles = dias * cabanasActivas;
   return {
     nochesOcupadas: ocupadas,
+    /** Noches bloqueadas por el dueño (Airbnb, mantención…): no se pueden reservar aquí. */
+    nochesBloqueadas: bloqueos.reduce((n, b) => n + dentro(b.desde, b.hasta), 0),
     nochesDisponibles: disponibles,
     porcentaje: disponibles ? Math.round((ocupadas / disponibles) * 100) : 0,
   };
@@ -95,14 +102,39 @@ export function porRevisarPago<T extends Pick<ReservaPanel, "notas" | "checkIn" 
     .sort((a, b) => aFechaIso(a.checkIn).localeCompare(aFechaIso(b.checkIn)) || a.cabana.localeCompare(b.cabana));
 }
 
-/** Cuántas cabañas están ocupadas cada noche de un periodo (para ver de un vistazo los días libres). */
-export function ocupacionPorDia(reservas: ReservaPanel[], desde: string, dias: number): { fecha: string; ocupadas: number }[] {
-  const conteo = new Map<string, number>();
-  for (const r of reservas.filter(activa)) {
-    for (const noche of nochesEntre(r.checkIn, r.checkOut)) conteo.set(noche, (conteo.get(noche) ?? 0) + 1);
-  }
+/** Cuántas cabañas están reservadas y cuántas bloqueadas cada noche (para ver los días libres). */
+export function ocupacionPorDia(
+  reservas: ReservaPanel[],
+  desde: string,
+  dias: number,
+  bloqueos: BloqueoPanel[] = [],
+): { fecha: string; ocupadas: number; bloqueadas: number }[] {
+  const contar = (rangos: { desde: Fecha; hasta: Fecha }[]) => {
+    const conteo = new Map<string, number>();
+    for (const r of rangos) for (const noche of nochesEntre(r.desde, r.hasta)) conteo.set(noche, (conteo.get(noche) ?? 0) + 1);
+    return conteo;
+  };
+  const reservadas = contar(reservas.filter(activa).map((r) => ({ desde: r.checkIn, hasta: r.checkOut })));
+  const bloqueadas = contar(bloqueos);
   return Array.from({ length: dias }, (_, i) => {
     const fecha = sumarDias(desde, i);
-    return { fecha, ocupadas: conteo.get(fecha) ?? 0 };
+    return { fecha, ocupadas: reservadas.get(fecha) ?? 0, bloqueadas: bloqueadas.get(fecha) ?? 0 };
   });
+}
+
+/** Bloqueo de fechas tal como lo usa el panel ([desde, hasta), hasta exclusivo). */
+export interface BloqueoPanel {
+  id?: string;
+  cabana: string;
+  desde: Fecha;
+  hasta: Fecha;
+  motivo: string | null;
+}
+
+/** Bloqueos que tocan las noches de [desde, desde + dias), por fecha. */
+export function bloqueosEnPeriodo<T extends BloqueoPanel>(bloqueos: T[], desde: string, dias: number): T[] {
+  const hasta = sumarDias(desde, dias);
+  return bloqueos
+    .filter((b) => aFechaIso(b.desde) < hasta && aFechaIso(b.hasta) > desde)
+    .sort((a, b) => aFechaIso(a.desde).localeCompare(aFechaIso(b.desde)) || a.cabana.localeCompare(b.cabana));
 }

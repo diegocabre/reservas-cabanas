@@ -106,34 +106,35 @@ export function Lista({ children }: { children: ReactNode }) {
 }
 
 /**
- * Próximos días como una tira de celdas: llena = todas las cabañas ocupadas, a medias = algunas,
- * vacía = libre. Debajo, el total del periodo.
+ * Próximos días como una tira de celdas, una por noche: reservada (todas las cabañas), algunas
+ * cabañas reservadas, bloqueada por el dueño, o libre. Debajo, el total del periodo.
  */
 export function TiraOcupacion({
   dias,
   cabanas,
   resumen,
 }: {
-  dias: { fecha: string; ocupadas: number }[];
+  dias: { fecha: string; ocupadas: number; bloqueadas: number }[];
   cabanas: number;
-  resumen: { nochesOcupadas: number; nochesDisponibles: number; porcentaje: number };
+  resumen: { nochesOcupadas: number; nochesBloqueadas: number; nochesDisponibles: number; porcentaje: number };
 }) {
+  const hayBloqueos = dias.some((d) => d.bloqueadas > 0);
+
   return (
     <div className="rounded-2xl border border-linea bg-nieve p-4">
-      <p className="flex items-baseline gap-2">
+      <p className="flex flex-wrap items-baseline gap-x-2">
         <span className="font-display text-4xl font-semibold tabular-nums">{resumen.porcentaje}%</span>
         <span className="text-sm text-tinta-suave">
-          {resumen.nochesOcupadas} de {resumen.nochesDisponibles} noches ocupadas
+          {resumen.nochesOcupadas} de {resumen.nochesDisponibles} noches reservadas
+          {resumen.nochesBloqueadas > 0 && `, ${resumen.nochesBloqueadas} bloqueadas`}
         </span>
       </p>
       <ol className="mt-4 grid grid-cols-10 gap-1" aria-label="Ocupación por noche">
         {dias.map((d) => {
-          const nivel = cabanas === 0 || d.ocupadas === 0 ? "libre" : d.ocupadas >= cabanas ? "lleno" : "parcial";
-          const color = { libre: "bg-papel-hondo", parcial: "bg-lago/45", lleno: "bg-lago" }[nivel];
-          const texto =
-            nivel === "libre" ? "libre" : cabanas === 1 ? "ocupada" : `${d.ocupadas} de ${cabanas} cabañas ocupadas`;
+          const nivel = nivelNoche(d, cabanas);
+          const texto = textoNoche(d, cabanas, nivel);
           return (
-            <li key={d.fecha} title={`${formatearFechaCorta(d.fecha)}: ${texto}`} className={`h-7 rounded-md ${color}`}>
+            <li key={d.fecha} title={`${formatearFechaCorta(d.fecha)}: ${texto}`} className={`h-7 rounded-md ${ESTILO_NOCHE[nivel]}`}>
               <span className="sr-only">
                 {formatearFechaCorta(d.fecha)}: {texto}
               </span>
@@ -147,19 +148,49 @@ export function TiraOcupacion({
       </div>
       <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-tinta-suave">
         <span className="flex items-center gap-1.5">
-          <span className="size-3 rounded-sm bg-lago" aria-hidden="true" /> Ocupada
+          <span className={`size-3 rounded-sm ${ESTILO_NOCHE.lleno}`} aria-hidden="true" /> Reservada
         </span>
         {cabanas > 1 && (
           <span className="flex items-center gap-1.5">
-            <span className="size-3 rounded-sm bg-lago/45" aria-hidden="true" /> Algunas cabañas
+            <span className={`size-3 rounded-sm ${ESTILO_NOCHE.parcial}`} aria-hidden="true" /> Algunas cabañas
+          </span>
+        )}
+        {hayBloqueos && (
+          <span className="flex items-center gap-1.5">
+            <span className={`size-3 rounded-sm ${ESTILO_NOCHE.bloqueado}`} aria-hidden="true" /> Bloqueada
           </span>
         )}
         <span className="flex items-center gap-1.5">
-          <span className="size-3 rounded-sm bg-papel-hondo" aria-hidden="true" /> Libre
+          <span className={`size-3 rounded-sm ${ESTILO_NOCHE.libre}`} aria-hidden="true" /> Libre
         </span>
       </p>
     </div>
   );
+}
+
+type NivelNoche = "libre" | "parcial" | "lleno" | "bloqueado";
+
+/** Las noches bloqueadas llevan rayas: se distinguen de las reservadas también sin depender del color. */
+const ESTILO_NOCHE: Record<NivelNoche, string> = {
+  libre: "bg-papel-hondo",
+  parcial: "bg-lago/45",
+  lleno: "bg-lago",
+  bloqueado: "rayas-bloqueo",
+};
+
+function nivelNoche(d: { ocupadas: number; bloqueadas: number }, cabanas: number): NivelNoche {
+  if (cabanas === 0 || d.ocupadas + d.bloqueadas === 0) return "libre";
+  if (d.ocupadas === 0) return "bloqueado";
+  return d.ocupadas + d.bloqueadas >= cabanas ? "lleno" : "parcial";
+}
+
+function textoNoche(d: { ocupadas: number; bloqueadas: number }, cabanas: number, nivel: NivelNoche): string {
+  if (nivel === "libre") return "libre";
+  if (nivel === "bloqueado") {
+    return cabanas === 1 || d.bloqueadas >= cabanas ? "bloqueada" : `${d.bloqueadas} de ${cabanas} cabañas bloqueadas`;
+  }
+  if (cabanas === 1) return "reservada";
+  return `${d.ocupadas} de ${cabanas} cabañas reservadas${d.bloqueadas ? `, ${d.bloqueadas} bloqueadas` : ""}`;
 }
 
 const ESTILO_ESTADO = {

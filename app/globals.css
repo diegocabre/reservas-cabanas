@@ -108,3 +108,12 @@ body {
 .calendario-reserva .dia-corto .rdp-day_button {
   opacity: 0.4;
 }
+
+/* Noches bloqueadas en la tira de ocupación del panel: rayas, para distinguirlas sin depender del color. */
+.rayas-bloqueo {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--madera-clara) 0 4px,
+    color-mix(in srgb, var(--madera-clara) 40%, transparent) 4px 8px
+  );
+}

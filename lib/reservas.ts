@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { MINUTOS_PARA_PAGAR, nochesOcupadas, reservaOcupa, validarEstadia } from "@/lib/disponibilidad";
 import { generarCodigoReserva } from "@/lib/codigo";
-import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
+import { cerrojoCabana, codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { hoyEnChile, ocultarEmail } from "@/lib/formato";
 import { enModoPrueba } from "@/lib/sitio";
 import { aFechaIso, calcularAbono, calcularPrecio, ErrorPrecio, type TarifaPrecio } from "@/lib/precios";
@@ -166,6 +166,8 @@ async function insertarReservaWeb(
 ): Promise<ResultadoReserva> {
   try {
     await db.$transaction(async (tx) => {
+      // Mientras dure la transacción, nadie más puede bloquear o reservar esta cabaña.
+      await cerrojoCabana(tx, cabanaId);
       // Las reservas pendientes que ya vencieron liberan sus fechas.
       await expirarReservasVencidas(tx, ahora, cabanaId);
 

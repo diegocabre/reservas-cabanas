@@ -20,6 +20,7 @@ export default async function LayoutPanel({ children }: LayoutProps<"/admin">) {
           <nav aria-label="Panel" className="flex gap-1">
             <EnlacePanel href="/admin">Hoy</EnlacePanel>
             <EnlacePanel href="/admin/reservas">Reservas</EnlacePanel>
+            <EnlacePanel href="/admin/bloqueos">Bloqueos</EnlacePanel>
           </nav>
           <div className="flex min-w-0 items-center gap-2">
             <span className="hidden min-w-0 truncate text-sm text-tinta-suave sm:block">{admin.email}</span>

@@ -29,6 +29,7 @@ export default async function PaginaResumen({ searchParams }: PageProps<"/admin"
       pendientes={datosPendientes(datos.propiedad)}
       modoPrueba={enModoPrueba()}
       reservas={datos.reservas}
+      bloqueos={datos.bloqueos}
       cabanasActivas={datos.cabanasActivas}
       propiedades={admin.propiedades}
       elegidaId={elegida.id}
