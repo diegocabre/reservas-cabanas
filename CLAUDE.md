@@ -84,7 +84,7 @@ Ajusta los nombres de tabla y columna a como Prisma los genere (usa `@@map` y `@
 
 ```
 app/
-  page.tsx                                 redirige a la cabaña piloto /maicolpue/maicolpue (portada propia más adelante)
+  page.tsx                                 portada: directorio de propiedades (una cabaña: va directo a ella; varias: a su lista)
   (public)/[propiedad]/page.tsx            página de la propiedad: lista de sus cabañas activas
   (public)/[propiedad]/[cabana]/page.tsx   página pública de la cabaña
   reservar/[propiedad]/[cabana]/           fechas + datos del huésped (el slug de cabaña solo es único dentro de su propiedad)

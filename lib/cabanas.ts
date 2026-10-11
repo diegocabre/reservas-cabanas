@@ -4,6 +4,7 @@ import { galeriaDeCabana } from "@/lib/galeria";
 import { precioDesde } from "@/lib/precios";
 import { bloqueoPublicacion, bloqueoReserva, datosPendientes, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enModoPrueba } from "@/lib/sitio";
+import { propiedadesVisibles } from "@/lib/directorio";
 
 /**
  * Cabaña activa para la página pública, o null si no existe / está inactiva.
@@ -82,3 +83,41 @@ export const obtenerPropiedadPublica = cache(async (propiedadSlug: string) => {
 });
 
 export type PropiedadPublica = NonNullable<Awaited<ReturnType<typeof obtenerPropiedadPublica>>>;
+
+/**
+ * Directorio de la portada: propiedades con sus cabañas listadas (mismas reglas que la página de la
+ * propiedad: activas, y sin las demo fuera del modo prueba). Las que no pueden publicarse o no tienen
+ * cabañas quedan fuera (lib/directorio.ts).
+ */
+export const obtenerDirectorio = cache(async () => {
+  const propiedades = await db.propiedad.findMany({
+    select: {
+      nombre: true,
+      slug: true,
+      ...SELECT_PUBLICACION,
+      cabanas: {
+        where: { activa: true, ...(enModoPrueba() ? {} : { demo: false }) },
+        orderBy: { createdAt: "asc" },
+        select: { slug: true, capacidad: true, fotos: true, demo: true, tarifas: { select: { precioNoche: true } } },
+      },
+    },
+  });
+
+  return propiedadesVisibles(
+    propiedades.map((p) => {
+      const precios = p.cabanas.map((c) => precioDesde(c.tarifas)).filter((x): x is number => x !== null);
+      return {
+        slug: p.slug,
+        nombre: p.nombre,
+        ubicacion: p.ubicacion,
+        bloqueo: bloqueoPublicacion(p, enModoPrueba()),
+        cabanas: p.cabanas.map(({ slug, demo }) => ({ slug, demo })),
+        foto: p.cabanas.find((c) => c.fotos[0])?.fotos[0] ?? null,
+        capacidadMaxima: Math.max(0, ...p.cabanas.map((c) => c.capacidad)),
+        precioDesde: precios.length ? Math.min(...precios) : null,
+      };
+    }),
+  );
+});
+
+export type PropiedadEnDirectorio = Awaited<ReturnType<typeof obtenerDirectorio>>[number];
