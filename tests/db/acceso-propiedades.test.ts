@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { cargarAdmin, comoAdmin, deSusPropiedades, idsPropiedades, type AdminSesion } from "@/lib/panel-acceso";
-import { anotarReserva, listarReservas, obtenerReserva } from "@/lib/panel-datos";
+import { anotarReserva, datosResumen, listarReservas, obtenerReserva } from "@/lib/panel-datos";
 
 const sufijo = randomUUID().slice(0, 8);
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -242,5 +242,28 @@ describe("RLS en Postgres (consultas sin filtro)", () => {
     const [{ rol }] = await db.$queryRaw<{ rol: string }[]>`select current_user as rol`;
     expect(rol).toBe("postgres");
     expect(await db.reserva.count({ where: nuestras() })).toBe(2);
+  });
+});
+
+describe("datosResumen (resumen del día)", () => {
+  it("no entrega el resumen de una propiedad ajena", async () => {
+    expect(await datosResumen(adminA, propiedadB, "2031-01-10")).toBeNull();
+  });
+
+  it("trae solo reservas de la propiedad pedida, con su saldo y teléfono", async () => {
+    const datos = await datosResumen(adminAB, propiedadA, "2031-01-10");
+    expect(datos?.propiedad.nombre).toBe(`Test RLS A ${sufijo}`);
+    expect(datos?.cabanasActivas).toBe(1);
+    expect(datos?.reservas.map((r) => r.codigo)).toEqual([reservaA.codigo]);
+    expect(datos?.reservas[0]).toMatchObject({ checkIn: "2031-01-10", checkOut: "2031-01-12", pagado: 0, telefono: "+56911111111" });
+  });
+
+  it("incluye las reservas con [REVISAR PAGO] aunque estén canceladas y fuera del periodo", async () => {
+    const revisar = await db.reserva.create({
+      data: { ...reservaNueva(cabanaA), estado: "cancelada", notas: "[REVISAR PAGO] pago 1 aprobado por $1, distinto al abono" },
+      select: { codigo: true },
+    });
+    const datos = await datosResumen(adminA, propiedadA, "2031-01-10");
+    expect(datos?.reservas.map((r) => r.codigo)).toEqual(expect.arrayContaining([reservaA.codigo, revisar.codigo]));
   });
 });

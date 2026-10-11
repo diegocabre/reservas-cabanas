@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { enviarEmailsReservaConfirmada } from "@/lib/emails";
 import { reservaOcupa } from "@/lib/disponibilidad";
 import { codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
-import { armarPreferencia, evaluarPago } from "@/lib/pagos";
+import { armarPreferencia, evaluarPago, MARCA_REVISAR } from "@/lib/pagos";
 import { bloqueoCobro, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enModoPrueba, urlDelSitio } from "@/lib/sitio";
 
@@ -72,8 +72,6 @@ export type ResultadoRegistroPago =
   | "rechazado"
   | "revisar" // pago aprobado que no se pudo aplicar (monto distinto o fechas ya tomadas)
   | "ignorado";
-
-const MARCA_REVISAR = "[REVISAR PAGO]";
 
 /**
  * Consulta un pago a la API de Mercado Pago (nunca le cree al aviso ni a los parámetros de la URL)

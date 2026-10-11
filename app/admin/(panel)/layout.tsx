@@ -18,7 +18,7 @@ export default async function LayoutPanel({ children }: LayoutProps<"/admin">) {
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-5 py-3">
           <span className="min-w-0 truncate text-sm text-tinta-suave">{admin.email}</span>
           <form action={cerrarSesion}>
-            <button type="submit" className="rounded-full px-3 py-2 text-sm font-semibold text-tinta-suave hover:bg-papel-hondo hover:text-tinta">
+            <button type="submit" className="min-h-11 rounded-full px-4 text-sm font-semibold text-tinta-suave hover:bg-papel-hondo hover:text-tinta">
               Salir
             </button>
           </form>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enlaceWhatsapp, mensajeReserva } from "./whatsapp";
+import { enlaceWhatsapp, mensajeAlHuesped, mensajeReserva } from "./whatsapp";
 
 describe("enlaceWhatsapp", () => {
   it("arma el link wa.me con solo dígitos y el texto codificado", () => {
@@ -25,5 +25,13 @@ describe("mensajeReserva", () => {
         nombre: "Ana",
       }),
     ).toBe("Hola, soy Ana. Hice la reserva LL-0001 en Cabaña Volcán Osorno, del 10 de enero de 2027 al 13 de enero de 2027.");
+  });
+});
+
+describe("mensajeAlHuesped", () => {
+  it("saluda por el primer nombre e incluye propiedad, código y llegada", () => {
+    expect(
+      mensajeAlHuesped({ nombre: "  Ana María Pérez ", propiedad: "Cabaña Maicolpue", codigo: "MA-7K3QX9", checkIn: "2026-11-01" }),
+    ).toBe("Hola Ana, te escribo de Cabaña Maicolpue por tu reserva MA-7K3QX9 con llegada el 1 de noviembre de 2026.");
   });
 });

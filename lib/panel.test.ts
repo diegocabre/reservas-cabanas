@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enCasa, llegadas, ocupacionMes, salidas, saldosPorCobrar, type ReservaPanel } from "./panel";
+import { enCasa, llegadas, ocupacion, ocupacionMes, ocupacionPorDia, porRevisarPago, salidas, saldosPorCobrar, type ReservaPanel } from "./panel";
 
 const r = (codigo: string, cabana: string, checkIn: string, checkOut: string, extra: Partial<ReservaPanel> = {}): ReservaPanel => ({
   codigo,
@@ -66,5 +66,103 @@ describe("ocupacionMes", () => {
 
   it("no divide por cero sin cabañas", () => {
     expect(ocupacionMes(reservas, "2026-10", 0).porcentaje).toBe(0);
+  });
+});
+
+describe("casos borde: llegada y salida el mismo día", () => {
+  // Cambio de huésped: uno sale y otro llega a la MISMA cabaña el mismo día ([check_in, check_out)).
+  const recambio = [
+    r("MA-SALE01", "Maicolpue", "2026-10-08", "2026-10-11"),
+    r("MA-LLEGA1", "Maicolpue", "2026-10-11", "2026-10-13"),
+  ];
+  const hoy = "2026-10-11";
+
+  it("la que sale aparece en salidas y la que llega en llegadas", () => {
+    expect(codigos(salidas(recambio, hoy))).toEqual(["MA-SALE01"]);
+    expect(codigos(llegadas(recambio, hoy))).toEqual(["MA-LLEGA1"]);
+  });
+
+  it("esa noche solo está alojado el que llega", () => {
+    expect(codigos(enCasa(recambio, hoy))).toEqual(["MA-LLEGA1"]);
+  });
+
+  it("el día de recambio cuenta una sola noche ocupada, no dos", () => {
+    expect(ocupacion(recambio, hoy, 1, 1)).toEqual({ nochesOcupadas: 1, nochesDisponibles: 1, porcentaje: 100 });
+  });
+
+  it("una estadía de una noche sale al día siguiente de llegar", () => {
+    const corta = [r("MA-1NOCHE", "Maicolpue", "2026-10-11", "2026-10-12")];
+    expect(codigos(llegadas(corta, "2026-10-11"))).toEqual(["MA-1NOCHE"]);
+    expect(codigos(salidas(corta, "2026-10-11"))).toEqual([]);
+    expect(codigos(enCasa(corta, "2026-10-12"))).toEqual([]);
+    expect(codigos(salidas(corta, "2026-10-12"))).toEqual(["MA-1NOCHE"]);
+  });
+});
+
+describe("casos borde: reserva que cruza el cambio de mes", () => {
+  const cruzada = [r("MA-CRUZA1", "Maicolpue", "2026-10-30", "2026-11-02")]; // noches 30, 31 oct y 1 nov
+
+  it("está alojada el último día del mes y el primero del siguiente", () => {
+    expect(codigos(enCasa(cruzada, "2026-10-31"))).toEqual(["MA-CRUZA1"]);
+    expect(codigos(enCasa(cruzada, "2026-11-01"))).toEqual(["MA-CRUZA1"]);
+    expect(codigos(enCasa(cruzada, "2026-11-02"))).toEqual([]);
+  });
+
+  it("la salida del mes siguiente aparece en los próximos días", () => {
+    expect(codigos(salidas(cruzada, "2026-10-31", 7))).toEqual(["MA-CRUZA1"]);
+    expect(codigos(salidas(cruzada, "2026-11-02"))).toEqual(["MA-CRUZA1"]);
+  });
+
+  it("los próximos 30 días cuentan todas sus noches aunque cambie el mes", () => {
+    expect(ocupacion(cruzada, "2026-10-20", 30, 1)).toEqual({ nochesOcupadas: 3, nochesDisponibles: 30, porcentaje: 10 });
+  });
+
+  it("un periodo que empieza a mitad de la estadía cuenta solo las noches desde ese día", () => {
+    expect(ocupacion(cruzada, "2026-10-31", 30, 1).nochesOcupadas).toBe(2);
+    expect(ocupacion(cruzada, "2026-11-01", 30, 2)).toEqual({ nochesOcupadas: 1, nochesDisponibles: 60, porcentaje: 2 });
+  });
+
+  it("el periodo termina exclusivo: la noche del día 30 ya no cuenta", () => {
+    // Desde el 2 de oct, 30 días = noches del 2 al 31 de oct. La noche del 1 de nov queda fuera.
+    expect(ocupacion(cruzada, "2026-10-02", 30, 1).nochesOcupadas).toBe(2);
+  });
+
+  it("cruza también el cambio de año", () => {
+    const anioNuevo = [r("MA-ANIO01", "Maicolpue", "2026-12-30", "2027-01-02")];
+    expect(codigos(enCasa(anioNuevo, "2027-01-01"))).toEqual(["MA-ANIO01"]);
+    expect(ocupacion(anioNuevo, "2026-12-15", 30, 1).nochesOcupadas).toBe(3);
+  });
+});
+
+describe("porRevisarPago", () => {
+  it("encuentra las reservas con [REVISAR PAGO] en las notas, en cualquier estado", () => {
+    const lista = [
+      r("MA-OK0001", "Maicolpue", "2026-11-01", "2026-11-03", { notas: "[PRUEBA] llegan tarde" }),
+      r("MA-REV002", "Maicolpue", "2026-11-10", "2026-11-12", {
+        estado: "cancelada",
+        notas: "[REVISAR PAGO] pago 123 aprobado después de vencer y las fechas ya están tomadas: reembolsar",
+      }),
+      r("MA-REV001", "Maicolpue", "2026-11-05", "2026-11-06", { notas: "nota\n[REVISAR PAGO] pago 99 aprobado por $1, distinto al abono" }),
+      r("MA-NULL01", "Maicolpue", "2026-11-07", "2026-11-08", { notas: null }),
+    ];
+    expect(codigos(porRevisarPago(lista))).toEqual(["MA-REV001", "MA-REV002"]);
+  });
+});
+
+describe("ocupacionPorDia", () => {
+  it("cuenta cabañas ocupadas por noche, con el día de recambio contado una vez y cruzando de mes", () => {
+    const lista = [
+      r("MA-A", "Maicolpue", "2026-10-30", "2026-11-01"),
+      r("MA-B", "Maicolpue", "2026-11-01", "2026-11-02"), // llega el día que sale MA-A
+      r("LA-C", "Arrayanes", "2026-10-31", "2026-11-02"),
+      r("LA-D", "Arrayanes", "2026-10-29", "2026-10-30", { estado: "cancelada" }),
+    ];
+    expect(ocupacionPorDia(lista, "2026-10-29", 5)).toEqual([
+      { fecha: "2026-10-29", ocupadas: 0 },
+      { fecha: "2026-10-30", ocupadas: 1 },
+      { fecha: "2026-10-31", ocupadas: 2 },
+      { fecha: "2026-11-01", ocupadas: 2 },
+      { fecha: "2026-11-02", ocupadas: 0 },
+    ]);
   });
 });

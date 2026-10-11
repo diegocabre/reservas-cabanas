@@ -50,6 +50,9 @@ export function armarPreferencia(d: DatosPreferencia) {
   };
 }
 
+/** Marca en `notas` de una reserva con un pago que el dueño debe revisar (monto distinto, fechas tomadas). */
+export const MARCA_REVISAR = "[REVISAR PAGO]";
+
 export type EstadoPagoInterno = "pendiente" | "aprobado" | "rechazado";
 
 export type EvaluacionPago =

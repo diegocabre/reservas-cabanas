@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatearCLP, formatearFechaCorta, formatearFechaLarga, formatearHora, hoyEnChile, ocultarEmail } from "./formato";
+import { formatearDiaLargo, formatearCLP, formatearFechaCorta, formatearFechaLarga, formatearHora, hoyEnChile, ocultarEmail } from "./formato";
 
 describe("formatearCLP", () => {
   it("usa punto de miles, signo $ y sin decimales", () => {
@@ -47,5 +47,11 @@ describe("ocultarEmail", () => {
 describe("formatearFechaLarga", () => {
   it("escribe la fecha en español", () => {
     expect(formatearFechaLarga("2027-01-10")).toBe("10 de enero de 2027");
+  });
+});
+
+describe("formatearDiaLargo", () => {
+  it("muestra día de la semana, día y mes en español, sin correrse por la zona horaria", () => {
+    expect(formatearDiaLargo("2026-10-11")).toBe("domingo, 11 de octubre");
   });
 });

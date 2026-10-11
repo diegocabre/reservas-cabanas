@@ -1,6 +1,7 @@
 // Cálculos del panel del dueño: funciones puras sobre reservas ya cargadas (filtradas por propiedad).
 // Rangos [check_in, check_out): el día de salida no es una noche ocupada.
 
+import { MARCA_REVISAR } from "@/lib/pagos";
 import { aFechaIso, nochesEntre, type Fecha } from "@/lib/precios";
 
 export interface ReservaPanel {
@@ -14,6 +15,9 @@ export interface ReservaPanel {
   /** Suma de pagos aprobados. */
   pagado: number;
   personas: number;
+  /** Para escribirle al huésped por WhatsApp. */
+  telefono?: string;
+  notas?: string | null;
 }
 
 const DIA_MS = 86_400_000;
@@ -55,22 +59,50 @@ export function saldosPorCobrar(reservas: ReservaPanel[]): (ReservaPanel & { sal
 }
 
 /**
- * Ocupación de un mes: noches ocupadas por reservas confirmadas / noches disponibles
- * (cabañas activas × días del mes). Entero de 0 a 100.
+ * Ocupación de un periodo de `dias` noches desde `desde` (inclusive): noches ocupadas por reservas
+ * confirmadas / noches disponibles (cabañas activas × días). Porcentaje entero de 0 a 100.
+ * Las estadías que empiezan antes o terminan después del periodo cuentan solo sus noches dentro.
  */
-export function ocupacionMes(reservas: ReservaPanel[], mes: string, cabanasActivas: number) {
-  const inicio = `${mes.slice(0, 7)}-01`;
-  const [anio, m] = inicio.split("-").map(Number);
-  const fin = new Date(Date.UTC(anio, m, 1)).toISOString().slice(0, 10); // primer día del mes siguiente
-  const dias = nochesEntre(inicio, fin).length;
-
+export function ocupacion(reservas: ReservaPanel[], desde: string, dias: number, cabanasActivas: number) {
+  const hasta = sumarDias(desde, dias);
   const ocupadas = reservas
     .filter(activa)
-    .reduce((n, r) => n + nochesEntre(r.checkIn, r.checkOut).filter((d) => d >= inicio && d < fin).length, 0);
+    .reduce((n, r) => n + nochesEntre(r.checkIn, r.checkOut).filter((d) => d >= desde && d < hasta).length, 0);
   const disponibles = dias * cabanasActivas;
   return {
     nochesOcupadas: ocupadas,
     nochesDisponibles: disponibles,
     porcentaje: disponibles ? Math.round((ocupadas / disponibles) * 100) : 0,
   };
+}
+
+/** Ocupación de un mes calendario ("2026-10"). */
+export function ocupacionMes(reservas: ReservaPanel[], mes: string, cabanasActivas: number) {
+  const inicio = `${mes.slice(0, 7)}-01`;
+  const [anio, m] = inicio.split("-").map(Number);
+  const fin = new Date(Date.UTC(anio, m, 1)).toISOString().slice(0, 10); // primer día del mes siguiente
+  return ocupacion(reservas, inicio, nochesEntre(inicio, fin).length, cabanasActivas);
+}
+
+/**
+ * Reservas con un pago que no se pudo aplicar solo ([REVISAR PAGO] en notas, ver lib/mercadopago.ts):
+ * monto distinto al abono, o pago que llegó cuando las fechas ya estaban tomadas. Cualquier estado:
+ * una reserva cancelada por vencer puede tener un pago aprobado que hay que devolver.
+ */
+export function porRevisarPago<T extends Pick<ReservaPanel, "notas" | "checkIn" | "cabana">>(reservas: T[]): T[] {
+  return reservas
+    .filter((r) => r.notas?.includes(MARCA_REVISAR))
+    .sort((a, b) => aFechaIso(a.checkIn).localeCompare(aFechaIso(b.checkIn)) || a.cabana.localeCompare(b.cabana));
+}
+
+/** Cuántas cabañas están ocupadas cada noche de un periodo (para ver de un vistazo los días libres). */
+export function ocupacionPorDia(reservas: ReservaPanel[], desde: string, dias: number): { fecha: string; ocupadas: number }[] {
+  const conteo = new Map<string, number>();
+  for (const r of reservas.filter(activa)) {
+    for (const noche of nochesEntre(r.checkIn, r.checkOut)) conteo.set(noche, (conteo.get(noche) ?? 0) + 1);
+  }
+  return Array.from({ length: dias }, (_, i) => {
+    const fecha = sumarDias(desde, i);
+    return { fecha, ocupadas: conteo.get(fecha) ?? 0 };
+  });
 }

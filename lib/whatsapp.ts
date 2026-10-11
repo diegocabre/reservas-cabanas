@@ -14,3 +14,9 @@ export function mensajeReserva(r: { codigo: string; cabana: string; checkIn: str
     `del ${formatearFechaLarga(r.checkIn)} al ${formatearFechaLarga(r.checkOut)}.`
   );
 }
+
+/** Mensaje del dueño al huésped (desde el panel) sobre su llegada. */
+export function mensajeAlHuesped(r: { nombre: string; propiedad: string; codigo: string; checkIn: string }) {
+  const [primerNombre] = r.nombre.trim().split(/\s+/);
+  return `Hola ${primerNombre}, te escribo de ${r.propiedad} por tu reserva ${r.codigo} con llegada el ${formatearFechaLarga(r.checkIn)}.`;
+}

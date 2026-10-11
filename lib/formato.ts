@@ -64,3 +64,10 @@ export function formatearFechaLarga(iso: string): string {
     year: "numeric",
   }).format(new Date(`${iso}T00:00:00Z`));
 }
+
+/** "2026-10-11" → "sábado 11 de octubre" (encabezado del panel). */
+export function formatearDiaLargo(iso: string): string {
+  return new Intl.DateTimeFormat("es-CL", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(
+    new Date(`${iso}T00:00:00Z`),
+  );
+}
