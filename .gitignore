@@ -57,3 +57,6 @@ next-env.d.ts
 
 # configuración local del servidor de vista previa de Claude Code
 .claude/launch.json
+
+# capturas de verificación (Playwright MCP)
+.playwright-mcp/
