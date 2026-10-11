@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { fotosDeGaleria, galeriaRegistrada } from "../lib/galeria";
+import { datosPendientes } from "../lib/publicacion";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -111,9 +112,10 @@ async function cargarTarifas(cabanaId: string) {
 async function cargarMaicolpue() {
   const propiedadDatos = {
     nombre: "Cabaña Maicolpue",
-    ubicacion: "Maicolpue · San Juan de la Costa (PENDIENTE)",
+    ubicacion: "Maicolpue · San Juan de la Costa",
     prefijoCodigo: "MA",
-    urlMapa: "https://www.google.com/maps/search/?api=1&query=Maicolpue%2C+San+Juan+de+la+Costa%2C+Chile",
+    // Ubicación exacta de la cabaña (link de Google Maps del dueño, 2026-10-11), sin parámetros de rastreo.
+    urlMapa: "https://www.google.com/maps/search/?api=1&query=-40.5989838%2C-73.7373428",
     // Nunca un número o email inventado: podría ser de una persona real.
     whatsapp: "PENDIENTE",
     email: "PENDIENTE",
@@ -122,8 +124,8 @@ async function cargarMaicolpue() {
     abonoNoches: null,
     politicaCancelacion:
       "PENDIENTE: cancelación sin costo hasta 15 días antes de la llegada (se devuelve el abono). Con menos de 15 días, el abono no es reembolsable.",
-    instruccionesLlegada:
-      "PENDIENTE: check-in desde las 15:00 y check-out hasta las 11:00. La ubicación exacta y cómo llegar se envían por WhatsApp el día anterior.",
+    // Horarios confirmados por el dueño el 2026-10-11.
+    instruccionesLlegada: "Check-in desde las 14:00 y check-out hasta las 11:30.",
   };
   const propiedad = await db.propiedad.upsert({
     where: { slug: "maicolpue" },
@@ -156,7 +158,12 @@ async function cargarMaicolpue() {
   });
   await cargarTarifas(cabana.id);
   console.log(`✔ ${cabana.nombre}: ${TARIFAS.length} tarifas, ${galeria.length} medios en la galería`);
-  console.log(`✔ Propiedad "${propiedad.nombre}" lista (con datos PENDIENTE)`);
+  const pendientes = datosPendientes(propiedad);
+  console.log(
+    pendientes.length
+      ? `✔ Propiedad "${propiedad.nombre}" lista. Falta confirmar: ${pendientes.join(", ")}`
+      : `✔ Propiedad "${propiedad.nombre}" lista, sin datos pendientes`,
+  );
 }
 
 main()
