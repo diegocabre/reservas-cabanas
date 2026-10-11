@@ -1,5 +1,6 @@
 // Piezas del resumen del día. Server Components: no necesitan JavaScript en el navegador.
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { IconoWhatsapp } from "@/components/iconos";
 import { formatearCLP, formatearFechaCorta } from "@/lib/formato";
@@ -58,7 +59,9 @@ export function TarjetaLlegada({
     <li className="rounded-2xl border border-linea bg-nieve p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-lg font-bold">{reserva.huesped}</p>
+          <Link href={`/admin/reservas/${reserva.codigo}`} className="block truncate text-lg font-bold underline-offset-4 hover:underline">
+            {reserva.huesped}
+          </Link>
           <p className="mt-0.5 text-sm text-tinta-suave">
             {mostrarCabana && `${reserva.cabana}, `}
             {personasTexto(reserva.personas)}
@@ -88,7 +91,9 @@ export function FilaReserva({ reserva, detalle, derecha }: { reserva: ReservaPan
   return (
     <li className="flex items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
-        <p className="truncate font-semibold">{reserva.huesped}</p>
+        <Link href={`/admin/reservas/${reserva.codigo}`} className="block truncate font-semibold underline-offset-4 hover:underline">
+          {reserva.huesped}
+        </Link>
         <p className="truncate text-sm text-tinta-suave">{detalle}</p>
       </div>
       {derecha ?? <Saldo reserva={reserva} />}
@@ -154,5 +159,33 @@ export function TiraOcupacion({
         </span>
       </p>
     </div>
+  );
+}
+
+const ESTILO_ESTADO = {
+  pendiente_pago: "bg-madera-clara/25 text-madera",
+  confirmada: "bg-musgo/15 text-musgo",
+  cancelada: "bg-tinta/8 text-tinta-suave",
+  completada: "bg-lago/10 text-lago",
+  vencida: "bg-tinta/8 text-tinta-suave",
+  revisar: "bg-fuego/15 text-fuego-hondo",
+} as const;
+
+const TEXTO_ESTADO = {
+  pendiente_pago: "Pendiente de pago",
+  confirmada: "Confirmada",
+  cancelada: "Cancelada",
+  completada: "Completada",
+  vencida: "Vencida sin pagar",
+  revisar: "Revisar pago",
+} as const;
+
+/** Etiqueta de estado de una reserva. Una pendiente cuyo plazo venció se muestra como vencida. */
+export function EtiquetaEstado({ estado, vencida = false }: { estado: ReservaPanel["estado"] | "revisar"; vencida?: boolean }) {
+  const clave = vencida && estado === "pendiente_pago" ? "vencida" : estado;
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap ${ESTILO_ESTADO[clave]}`}>
+      {TEXTO_ESTADO[clave]}
+    </span>
   );
 }

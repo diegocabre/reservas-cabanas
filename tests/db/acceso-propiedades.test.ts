@@ -186,8 +186,9 @@ describe("RLS en Postgres (consultas sin filtro)", () => {
     await expect(
       comoAdmin(adminA, (tx) => tx.reserva.update({ where: { id: reservaB.id }, data: { notas: "hackeada" } })),
     ).rejects.toThrow();
-    const borradas = await comoAdmin(adminA, (tx) => tx.reserva.deleteMany({ where: { id: reservaB.id } }));
-    expect(borradas.count).toBe(0);
+    // El panel no tiene permiso para borrar reservas (se cancelan), ni siquiera las suyas.
+    await expect(comoAdmin(adminA, (tx) => tx.reserva.deleteMany({ where: { id: reservaB.id } }))).rejects.toThrow();
+    await expect(comoAdmin(adminA, (tx) => tx.reserva.deleteMany({ where: { id: reservaA.id } }))).rejects.toThrow();
 
     const b = await db.reserva.findUniqueOrThrow({ where: { id: reservaB.id }, select: { estado: true, notas: true } });
     expect(b).toEqual({ estado: "confirmada", notas: "nota original B" });

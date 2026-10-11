@@ -67,9 +67,9 @@ export function VistaResumen({ hoy, propiedad, pendientes, modoPrueba, reservas,
           <ul className="mt-3 grid gap-2">
             {revisar.map((r) => (
               <li key={r.codigo} className="rounded-xl bg-nieve px-3.5 py-3 text-sm">
-                <p className="font-bold">
+                <Link href={`/admin/reservas/${r.codigo}`} className="font-bold underline-offset-4 hover:underline">
                   {r.huesped} <span className="font-semibold text-tinta-suave">· {r.codigo}</span>
-                </p>
+                </Link>
                 <p className="text-tinta-suave">
                   {conCabana(r, `llegada ${formatearFechaCorta(String(r.checkIn))}, reserva ${ESTADOS[r.estado]}`)}
                 </p>

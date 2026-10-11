@@ -1,10 +1,13 @@
 // Consultas del panel sobre reservas. Toda función recibe el admin de la sesión y aplica las dos
 // defensas de lib/panel-acceso.ts: filtro por sus propiedades y RLS (comoAdmin).
 
+import { reservaOcupa } from "@/lib/disponibilidad";
+import { terminosBusqueda, type FiltrosReservas } from "@/lib/filtros-reservas";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { comoAdmin, deSusPropiedades, type AdminSesion } from "@/lib/panel-acceso";
 import type { ReservaPanel } from "@/lib/panel";
 import { MARCA_REVISAR } from "@/lib/pagos";
-import { aFechaIso } from "@/lib/precios";
+import { aFechaIso, nochesEntre } from "@/lib/precios";
 import { SELECT_PUBLICACION } from "@/lib/publicacion";
 
 const SELECT_RESERVA = {
@@ -122,3 +125,97 @@ export function aReservaPanel(r: {
     notas: r.notas,
   };
 }
+
+/** Máximo de reservas por página en la lista (el piloto tiene pocas; paginar cuando haga falta). */
+export const MAXIMO_LISTA = 200;
+
+/** Cabañas de las propiedades del admin, para el filtro de la lista. */
+export function cabanasDelAdmin(admin: AdminSesion) {
+  return comoAdmin(admin, (tx) =>
+    tx.cabana.findMany({
+      where: { propiedadId: { in: admin.propiedades.map((p) => p.id) } },
+      select: { id: true, nombre: true, propiedad: { select: { nombre: true } } },
+      orderBy: [{ propiedad: { nombre: "asc" } }, { nombre: "asc" }],
+    }),
+  );
+}
+
+/** Lista de reservas con filtros (lib/filtros-reservas.ts). Siempre dentro de las propiedades del admin. */
+export async function buscarReservas(admin: AdminSesion, f: FiltrosReservas) {
+  const busqueda = terminosBusqueda(f.q);
+  const where: Prisma.ReservaWhereInput = {
+    AND: [
+      deSusPropiedades(admin),
+      f.estado === "revisar" ? { notas: { contains: MARCA_REVISAR } } : f.estado !== "todas" ? { estado: f.estado } : {},
+      f.cabana ? { cabanaId: f.cabana } : {},
+      f.desde ? { checkOut: { gt: d(f.desde) } } : {},
+      f.hasta ? { checkIn: { lte: d(f.hasta) } } : {},
+      busqueda
+        ? {
+            OR: [
+              { codigo: { contains: busqueda.codigo, mode: "insensitive" } },
+              { huespedNombre: { contains: busqueda.texto, mode: "insensitive" } },
+              { huespedEmail: { contains: busqueda.texto, mode: "insensitive" } },
+            ],
+          }
+        : {},
+    ],
+  };
+  const filas = await comoAdmin(admin, (tx) =>
+    tx.reserva.findMany({
+      where,
+      select: { ...SELECT_RESERVA, expiraEn: true },
+      orderBy: [{ checkIn: "asc" }, { codigo: "asc" }],
+      take: MAXIMO_LISTA + 1,
+    }),
+  );
+  const ahora = new Date();
+  return {
+    hayMas: filas.length > MAXIMO_LISTA,
+    reservas: filas.slice(0, MAXIMO_LISTA).map((r) => ({
+      ...aReservaPanel(r),
+      origen: r.origen,
+      vencida: r.estado === "pendiente_pago" && !reservaOcupa(r, ahora),
+    })),
+  };
+}
+
+/** Detalle de una reserva para el panel: huésped completo, pagos y auditoría. null si no es del admin. */
+export async function detalleReserva(admin: AdminSesion, codigo: string) {
+  const r = await comoAdmin(admin, (tx) =>
+    tx.reserva.findFirst({
+      where: { codigo, ...deSusPropiedades(admin) },
+      select: {
+        ...SELECT_RESERVA,
+        huespedRut: true,
+        expiraEn: true,
+        createdAt: true,
+        cabana: { select: { nombre: true, propiedad: { select: { nombre: true, slug: true } } } },
+        pagos: {
+          select: { id: true, monto: true, estado: true, proveedor: true, refExterna: true, pagadoEn: true, createdAt: true },
+          orderBy: { createdAt: "asc" },
+        },
+        auditoria: {
+          select: { id: true, accion: true, email: true, estadoAntes: true, estadoDespues: true, detalle: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    }),
+  );
+  if (!r) return null;
+  const pagado = r.pagos.filter((p) => p.estado === "aprobado").reduce((s, p) => s + p.monto, 0);
+  const noches = nochesEntre(r.checkIn, r.checkOut).length;
+  return {
+    ...r,
+    checkIn: aFechaIso(r.checkIn),
+    checkOut: aFechaIso(r.checkOut),
+    noches,
+    // Precio por noche solo si el total se reparte exacto (las reservas manuales pueden tener otro precio).
+    precioNoche: r.total % noches === 0 ? r.total / noches : null,
+    pagado,
+    saldo: r.total - pagado,
+    vencida: r.estado === "pendiente_pago" && !reservaOcupa(r, new Date()),
+  };
+}
+
+export type DetalleReserva = NonNullable<Awaited<ReturnType<typeof detalleReserva>>>;

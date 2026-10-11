@@ -33,6 +33,7 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 - Cabañas demo (`cabana.demo`): no existen, solo muestran el sistema. NUNCA cobran, ni en modo prueba (`bloqueoCobro` en `lib/publicacion.ts`: sin preferencia de Mercado Pago ni botón de pago). Fuera del modo prueba tampoco reciben reservas ni se listan en su propiedad (`bloqueoReserva`).
 - Galerías con fotos y videos verticales en `public/piloto/<cabaña>/galeria/galeria.json`, registradas en `lib/galeria.ts`. El ítem 1 es la portada, la vista previa de WhatsApp (og:image) y la foto del email; el seed guarda las imágenes en orden en `cabana.fotos`.
 - Estados de reserva: `pendiente_pago`, `confirmada`, `cancelada`, `completada`.
+- Acciones del dueño en el panel (`lib/panel-acciones.ts`, reglas puras en `lib/estados-reserva.ts`): confirmar (desde `pendiente_pago` o `cancelada`; revisa bloqueos y la base rechaza traslapes), cancelar (desde `pendiente_pago` o `confirmada`, con motivo obligatorio; libera las fechas), registrar un pago recibido (`efectivo`, `transferencia` o `mercadopago`; lo pagado nunca supera el total) y marcar un `[REVISAR PAGO]` como revisado (queda `[PAGO REVISADO]`). Cada acción bloquea la fila (`FOR UPDATE`), revalida contra la base y escribe `Auditoria` (quién, cuándo, estado antes y después, detalle). El panel no borra reservas ni pagos, y la auditoría es solo de inserción.
 - Una reserva web nace en `pendiente_pago` con `expira_en = ahora + 30 min` (`MINUTOS_PARA_PAGAR` en `lib/disponibilidad.ts`). Las pendientes vencidas ya no ocupan fechas y se marcan `cancelada` antes de insertar una nueva reserva en esa cabaña.
 - Código de reserva: `prefijo_codigo` de la propiedad + 6 caracteres aleatorios sin caracteres confundibles (`LL-7K3QX9`, `lib/codigo.ts`), para que no se pueda adivinar. La unicidad la asegura el índice único de `codigo`; si choca, se reintenta con otro. Las primeras reservas de prueba conservan su código correlativo (`LL-0001`…); `ultimo_correlativo` quedó en desuso.
 - Al crear una reserva web se envía el email "reserva apartada" con el link para pagar, por si el huésped cierra la página. `/mi-reserva` permite volver a la reserva con código Y email (los dos son obligatorios; mismo mensaje de error si falla cualquiera).
@@ -49,7 +50,7 @@ Usa las versiones estables actuales de cada librería y sigue su documentación 
 
 ## Modelo de datos
 
-Propiedad, Admin, Cabana, Tarifa, Temporada (sin uso), Reserva, Pago, Bloqueo, CalendarioExterno.
+Propiedad, Admin, Cabana, Tarifa, Temporada (sin uso), Reserva, Pago, Auditoria, Bloqueo, CalendarioExterno.
 
 - **Propiedad**: nombre, slug único, ubicacion, prefijo_codigo (único), ultimo_correlativo, whatsapp, email, abono_pct (default 50), abono_noches (opcional; si está, manda sobre abono_pct), politica_cancelacion, instrucciones_llegada
 - **Admin**: usuario_id (= id de usuario de Supabase Auth), propiedad_id, email, rol (`dueno` | `staff`). Única por usuario + propiedad.
@@ -57,7 +58,8 @@ Propiedad, Admin, Cabana, Tarifa, Temporada (sin uso), Reserva, Pago, Bloqueo, C
 - **Tarifa**: cabana_id, personas_desde, personas_hasta (inclusivos), noches_desde, precio_noche (int). Única por cabaña + personas_desde + noches_desde.
 - **Temporada** (sin uso desde el piloto, queda para la etapa 2): cabana_id, nombre, desde, hasta (date), precio_noche (int), min_noches (opcional)
 - **Reserva**: codigo legible único (ej. `PV-0142`), cabana_id, check_in, check_out, adultos, ninos, huesped_nombre, huesped_email, huesped_telefono, huesped_rut (opcional), total, abono (int), estado, origen, expira_en (opcional), notas, timestamps
-- **Pago**: reserva_id, proveedor (`mercadopago` | `flow` | `transferencia`), monto, estado (`pendiente` | `aprobado` | `rechazado`), ref_externa, pagado_en
+- **Pago**: reserva_id, proveedor (`mercadopago` | `flow` | `transferencia` | `efectivo`), monto, estado (`pendiente` | `aprobado` | `rechazado`), ref_externa, pagado_en
+- **Auditoria**: reserva_id, usuario_id, email, accion (`confirmar` | `cancelar` | `registrar_pago` | `marcar_revisado`), estado_antes, estado_despues, detalle, created_at. Solo se agrega (RLS: `panel_admin` inserta a su propio nombre y lee; no edita ni borra).
 - **Bloqueo**: cabana_id, desde, hasta, motivo, origen (`manual` | `ical`), uid_externo (opcional)
 - **CalendarioExterno** (etapa 2, sin usar en el MVP): cabana_id, plataforma (`airbnb` | `booking`), url_ical, ultimo_sync
 
@@ -88,7 +90,8 @@ app/
   reservar/[propiedad]/[cabana]/           fechas + datos del huésped (el slug de cabaña solo es único dentro de su propiedad)
   reserva/[codigo]/page.tsx                confirmación
   admin/login, admin/confirmar, admin/salir   login con link mágico, callback y salida
-  admin/(panel)/                           panel del dueño (protegido por proxy.ts y requerirAdmin)
+  admin/(panel)/                           panel del dueño (protegido por proxy.ts y requerirAdmin): resumen del día
+  admin/(panel)/reservas/[codigo]/         lista con filtros y detalle con acciones
   api/                                     webhooks (pagos) y cron; iCal en la etapa 2
 lib/
   db.ts            cliente Prisma
