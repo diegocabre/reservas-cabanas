@@ -34,7 +34,8 @@ export async function pedirLink(_previo: EstadoLogin, formData: FormData): Promi
   }
   if (error && error.status !== 400 && error.status !== 422) {
     // 400/422: el email no tiene usuario. Cualquier otro error es del servicio y sí se avisa.
-    console.error("No se pudo enviar el link de ingreso", error.status, error.code);
+    // status 0 = no se llegó a Supabase (revisar NEXT_PUBLIC_SUPABASE_URL); 401 = llave anónima incorrecta.
+    console.error("No se pudo enviar el link de ingreso", { status: error.status, code: error.code, mensaje: error.message });
     return { email, error: "No pudimos enviar el link. Intenta de nuevo en un momento." };
   }
   return { enviadoA: r.data.email };
