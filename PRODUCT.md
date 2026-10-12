@@ -34,7 +34,7 @@ La reserva es directa con la cabaña: el huésped trata con el anfitrión, paga 
 ## Capabilities and Constraints
 
 - Multi-propiedad: cada cabaña pertenece a una propiedad; hoy existen la demo "Cabañas Lago Llanquihue" (dos cabañas de demostración) y la piloto real "Cabaña Maicolpue".
-- Precio por noche según tamaño del grupo y largo de la estadía (tabla `Tarifa`); abono de la piloto = 1 noche; estadía mínima de 1 noche; hasta 8 personas.
+- Precio por noche según tamaño del grupo y largo de la estadía (tabla `Tarifa`); abono de la piloto = 50 % del total (confirmado por el dueño el 9 oct 2026); estadía mínima de 1 noche; hasta 8 personas.
 - Datos marcados PENDIENTE (ubicación exacta, WhatsApp, email, llegada, cancelación) bloquean la publicación fuera del modo prueba. Mientras falten, se muestran como pendientes; nunca se inventan.
 - La página de una reserva no muestra datos personales del huésped (email oculto, sin teléfono ni RUT).
 - Fuera de alcance: chatbot o IA, WhatsApp Business API, multi-idioma, cupones, channel manager, registro automático de propiedades. Sincronización iCal con Airbnb y Booking queda para la etapa 2.
