@@ -6,6 +6,7 @@ import { BotonDisponibilidad, PrecioDesde } from "@/components/cabana/precio-des
 import Link from "next/link";
 import { IconoCama, IconoFlecha, IconoHoja, IconoPersonas } from "@/components/iconos";
 import { EnlaceMiReserva } from "@/components/enlace-mi-reserva";
+import { BotonReservaWhatsapp } from "@/components/reserva-whatsapp";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { Ubicacion } from "@/components/ubicacion";
 import { obtenerCabanaPublica } from "@/lib/cabanas";
@@ -151,7 +152,13 @@ export default async function PaginaCabana({ params }: Props) {
         {/* Escritorio: tarjeta lateral fija al hacer scroll. */}
         <aside className="hidden md:block">
           <div className="vetas sticky top-6 rounded-3xl border border-linea bg-nieve p-6 shadow-[0_20px_50px_-30px_var(--madera)]">
-            {cabana.bloqueo ? (
+            {cabana.reservaWhatsapp ? (
+              <>
+                <PrecioDesde precio={cabana.precioDesde} />
+                <BotonReservaWhatsapp href={cabana.reservaWhatsapp} className="mt-5 w-full" />
+                <p className="mt-3 text-center text-xs text-tinta-suave">Coordinas tu reserva directo con la cabaña.</p>
+              </>
+            ) : cabana.bloqueo ? (
               <BloqueoPublicacion mensaje={cabana.bloqueo} className="border-0 p-0" />
             ) : (
               <>
@@ -166,7 +173,12 @@ export default async function PaginaCabana({ params }: Props) {
 
       {/* Celular: barra fija abajo, respetando la barra de inicio del iPhone. */}
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-linea bg-nieve/95 px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md md:hidden">
-        {cabana.bloqueo ? (
+        {cabana.reservaWhatsapp ? (
+          <div className="mx-auto flex max-w-xl items-center justify-between gap-4">
+            <PrecioDesde precio={cabana.precioDesde} />
+            <BotonReservaWhatsapp href={cabana.reservaWhatsapp} className="shrink-0" />
+          </div>
+        ) : cabana.bloqueo ? (
           <p className="mx-auto max-w-xl text-center text-sm text-tinta-suave">{cabana.bloqueo}</p>
         ) : (
           <div className="mx-auto flex max-w-xl items-center justify-between gap-4">

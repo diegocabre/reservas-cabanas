@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enlaceWhatsapp, mensajeAlHuesped, mensajeReserva } from "./whatsapp";
+import { enlaceWhatsapp, mensajeAlHuesped, mensajeConsultaReserva, mensajeReserva } from "./whatsapp";
 
 describe("enlaceWhatsapp", () => {
   it("arma el link wa.me con solo dígitos y el texto codificado", () => {
@@ -33,5 +33,11 @@ describe("mensajeAlHuesped", () => {
     expect(
       mensajeAlHuesped({ nombre: "  Ana María Pérez ", propiedad: "Cabaña Maicolpue", codigo: "MA-7K3QX9", checkIn: "2026-11-01" }),
     ).toBe("Hola Ana, te escribo de Cabaña Maicolpue por tu reserva MA-7K3QX9 con llegada el 1 de noviembre de 2026.");
+  });
+});
+
+describe("mensajeConsultaReserva", () => {
+  it("pide fechas para la cabaña", () => {
+    expect(mensajeConsultaReserva("Cabaña Maicolpue")).toBe("Hola, quiero reservar Cabaña Maicolpue. ¿Qué fechas tienen disponibles?");
   });
 });

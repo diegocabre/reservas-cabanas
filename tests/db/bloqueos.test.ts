@@ -230,3 +230,33 @@ describe("auditoría y propiedades", () => {
     expect((await bloquear(dia(5), dia(3))).ok).toBe(false);
   });
 });
+
+describe("fuera del modo prueba, sin Mercado Pago conectado", () => {
+  it("el servidor no acepta reservas web (se reserva por WhatsApp); con la cuenta conectada, sí", async () => {
+    const antes = process.env.RESERVAS_MODO_PRUEBA;
+    process.env.RESERVAS_MODO_PRUEBA = "false";
+    try {
+      expect(await reservarWeb(dia(150), dia(152))).toEqual({ ok: false, error: "Por ahora esta cabaña recibe reservas por WhatsApp." });
+
+      await db.cuentaMercadoPago.create({
+        data: {
+          propiedadId: propiedadA.id,
+          mpUserId: "123",
+          accessTokenCifrado: "v1.x.x.x",
+          refreshTokenCifrado: "v1.x.x.x",
+          expiraEn: new Date(Date.now() + 86_400_000),
+          produccion: true,
+          conectadaPor: adminA.email,
+        },
+      });
+      expect(await reservarWeb(dia(150), dia(152))).toMatchObject({ ok: true });
+
+      // Una cuenta vencida (180 días sin renovar) cuenta como no conectada.
+      await db.cuentaMercadoPago.update({ where: { propiedadId: propiedadA.id }, data: { expiraEn: new Date(Date.now() - 1000) } });
+      expect((await reservarWeb(dia(160), dia(162))).ok).toBe(false);
+    } finally {
+      process.env.RESERVAS_MODO_PRUEBA = antes;
+      await db.cuentaMercadoPago.deleteMany({ where: { propiedadId: propiedadA.id } });
+    }
+  });
+});

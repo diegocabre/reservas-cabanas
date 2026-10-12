@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
@@ -28,5 +29,10 @@ export async function GET(request: NextRequest) {
     console.error("No se pudo conectar la cuenta de Mercado Pago", e);
     redirect("/admin/cobros?error=mercadopago");
   }
-  redirect(resultado.ok ? "/admin/cobros?hecho=conectada" : "/admin/cobros?error=permiso");
+  if (resultado.ok) {
+    // La cabaña pasa de "Reservar por WhatsApp" a reservar y pagar en línea.
+    revalidatePath("/[propiedad]/[cabana]", "page");
+    redirect("/admin/cobros?hecho=conectada");
+  }
+  redirect("/admin/cobros?error=permiso");
 }

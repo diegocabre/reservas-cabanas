@@ -48,15 +48,23 @@ export const SELECT_PUBLICACION = {
 export const MENSAJE_DEMO_SIN_RESERVAS = "Esta es una cabaña de demostración: no recibe reservas reales.";
 export const MENSAJE_DEMO_SIN_COBRO = "Esta es una cabaña de demostración: no se cobra ningún pago.";
 
+/** La propiedad todavía no conecta su Mercado Pago: se reserva conversando por WhatsApp. */
+export const MENSAJE_SIN_PAGO_EN_LINEA = "Por ahora esta cabaña recibe reservas por WhatsApp.";
+
 type CabanaPublicacion = { demo: boolean; propiedad: DatosPublicacion };
 
 /**
  * Motivo por el que no se puede reservar la cabaña, o null si se puede.
- * Fuera del modo prueba: las demo no reciben reservas y las propiedades con datos PENDIENTE tampoco.
+ * Fuera del modo prueba: las demo no reciben reservas, las propiedades con datos PENDIENTE tampoco,
+ * y las que no conectaron su Mercado Pago tampoco (el huésped no podría pagar el abono y la reserva
+ * vencería sola): esas se reservan por WhatsApp.
  */
-export function bloqueoReserva(c: CabanaPublicacion, modoPrueba: boolean): string | null {
+export function bloqueoReserva(c: CabanaPublicacion, modoPrueba: boolean, cuentaConectada = true): string | null {
   if (c.demo && !modoPrueba) return MENSAJE_DEMO_SIN_RESERVAS;
-  return bloqueoPublicacion(c.propiedad, modoPrueba);
+  const publicacion = bloqueoPublicacion(c.propiedad, modoPrueba);
+  if (publicacion) return publicacion;
+  if (!modoPrueba && !cuentaConectada) return MENSAJE_SIN_PAGO_EN_LINEA;
+  return null;
 }
 
 /** Motivo por el que no se puede cobrar el abono, o null si se puede. Las demo NUNCA cobran, ni en modo prueba. */

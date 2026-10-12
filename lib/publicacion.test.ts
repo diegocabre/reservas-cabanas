@@ -6,6 +6,7 @@ import {
   datosPendientes,
   MENSAJE_DEMO_SIN_COBRO,
   MENSAJE_DEMO_SIN_RESERVAS,
+  MENSAJE_SIN_PAGO_EN_LINEA,
   type DatosPublicacion,
 } from "./publicacion";
 
@@ -89,5 +90,32 @@ describe("cabañas demo", () => {
     expect(bloqueoCobro(pendiente, true)).toBeNull();
     expect(bloqueoCobro(pendiente, false)).toMatch(/faltan datos por confirmar/);
     expect(bloqueoReserva(pendiente, false)).toMatch(/faltan datos por confirmar/);
+  });
+});
+
+describe("sin Mercado Pago conectado", () => {
+  const real = {
+    demo: false,
+    propiedad: {
+      ubicacion: "Maicolpue",
+      whatsapp: "+56941676239",
+      email: "dueno@example.com",
+      instruccionesLlegada: "Check-in 14:00",
+      politicaCancelacion: "Sin devolución",
+    },
+  };
+
+  it("fuera del modo prueba no recibe reservas en línea: se reserva por WhatsApp", () => {
+    expect(bloqueoReserva(real, false, false)).toBe(MENSAJE_SIN_PAGO_EN_LINEA);
+    expect(bloqueoReserva(real, false, true)).toBeNull();
+  });
+
+  it("en modo prueba se puede probar sin cuenta conectada", () => {
+    expect(bloqueoReserva(real, true, false)).toBeNull();
+  });
+
+  it("los datos pendientes y las demo tienen prioridad sobre la falta de cuenta", () => {
+    expect(bloqueoReserva({ ...real, demo: true }, false, false)).toBe(MENSAJE_DEMO_SIN_RESERVAS);
+    expect(bloqueoReserva({ ...real, propiedad: { ...real.propiedad, email: "PENDIENTE" } }, false, false)).toContain("faltan datos");
   });
 });

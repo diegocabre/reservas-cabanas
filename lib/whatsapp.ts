@@ -15,6 +15,11 @@ export function mensajeReserva(r: { codigo: string; cabana: string; checkIn: str
   );
 }
 
+/** Mensaje del huésped que quiere reservar por WhatsApp (cabañas sin pago en línea). */
+export function mensajeConsultaReserva(cabana: string) {
+  return `Hola, quiero reservar ${cabana}. ¿Qué fechas tienen disponibles?`;
+}
+
 /** Mensaje del dueño al huésped (desde el panel) sobre su llegada. */
 export function mensajeAlHuesped(r: { nombre: string; propiedad: string; codigo: string; checkIn: string }) {
   const [primerNombre] = r.nombre.trim().split(/\s+/);

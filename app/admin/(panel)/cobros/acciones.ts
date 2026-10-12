@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -37,5 +38,6 @@ export async function accionDesconectar(_previo: EstadoCobros, formData: FormDat
   if (!propiedadId.success) return { error: "Propiedad inválida." };
   const r = await desconectarCuenta(admin, propiedadId.data);
   if (!r.ok) return { error: r.error };
+  revalidatePath("/[propiedad]/[cabana]", "page");
   redirect("/admin/cobros?hecho=desconectada");
 }

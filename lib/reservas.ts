@@ -5,7 +5,9 @@ import { cerrojoCabana, codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-d
 import { hoyEnChile, ocultarEmail } from "@/lib/formato";
 import { enModoPrueba } from "@/lib/sitio";
 import { aFechaIso, calcularAbono, calcularPrecio, ErrorPrecio, type TarifaPrecio } from "@/lib/precios";
+import { tieneCuentaConectada } from "@/lib/mercadopago-cuentas";
 import { bloqueoReserva, SELECT_PUBLICACION } from "@/lib/publicacion";
+import { enlaceWhatsapp, mensajeConsultaReserva } from "@/lib/whatsapp";
 import type { DatosReserva } from "@/lib/reserva-esquema";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -41,7 +43,7 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
       minNoches: true,
       fotos: true,
       demo: true,
-      propiedad: { select: { nombre: true, slug: true, abonoPct: true, abonoNoches: true, ...SELECT_PUBLICACION } },
+      propiedad: { select: { id: true, nombre: true, slug: true, abonoPct: true, abonoNoches: true, ...SELECT_PUBLICACION } },
       tarifas: { select: SELECT_TARIFA },
       reservas: {
         where: { estado: { in: ["pendiente_pago", "confirmada"] }, checkOut: { gt: d(hoy) } },
@@ -69,7 +71,12 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
     },
     hoy,
     ultimoDia: sumarMeses(hoy, MESES_RESERVABLES),
-    bloqueo: bloqueoReserva({ demo: cabana.demo, propiedad }, enModoPrueba()),
+    bloqueo: bloqueoReserva(
+      { demo: cabana.demo, propiedad },
+      enModoPrueba(),
+      enModoPrueba() || (await tieneCuentaConectada(propiedad.id)),
+    ),
+    reservaWhatsapp: enlaceWhatsapp(propiedad.whatsapp, mensajeConsultaReserva(cabana.nombre)),
     ocupadas: [...ocupadas].filter((n) => n >= hoy).sort(),
   };
 }
@@ -122,7 +129,8 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
   });
   if (!cabana) return { ok: false, error: "Esta cabaña no está disponible para reservas." };
 
-  const bloqueo = bloqueoReserva(cabana, enModoPrueba());
+  // Sin Mercado Pago conectado (fuera del modo prueba) el huésped no podría pagar: no se reserva en línea.
+  const bloqueo = bloqueoReserva(cabana, enModoPrueba(), enModoPrueba() || (await tieneCuentaConectada(cabana.propiedad.id)));
   if (bloqueo) return { ok: false, error: bloqueo };
 
   // Precio y abono se recalculan aquí con las tarifas de la base; el navegador solo los muestra.

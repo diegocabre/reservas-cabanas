@@ -2,7 +2,9 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { galeriaDeCabana } from "@/lib/galeria";
 import { precioDesde } from "@/lib/precios";
-import { bloqueoPublicacion, bloqueoReserva, datosPendientes, SELECT_PUBLICACION } from "@/lib/publicacion";
+import { tieneCuentaConectada } from "@/lib/mercadopago-cuentas";
+import { bloqueoPublicacion, bloqueoReserva, datosPendientes, MENSAJE_SIN_PAGO_EN_LINEA, SELECT_PUBLICACION } from "@/lib/publicacion";
+import { enlaceWhatsapp, mensajeConsultaReserva } from "@/lib/whatsapp";
 import { enModoPrueba } from "@/lib/sitio";
 import { propiedadesVisibles, volverDesdeCabana } from "@/lib/directorio";
 import { leerTema } from "@/lib/tema";
@@ -26,6 +28,7 @@ export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSl
       demo: true,
       propiedad: {
         select: {
+          id: true,
           nombre: true,
           slug: true,
           urlMapa: true,
@@ -40,13 +43,21 @@ export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSl
   if (!cabana) return null;
 
   const { tarifas, ...resto } = cabana;
+  // Fuera del modo prueba, sin Mercado Pago conectado no se reserva en línea (lib/publicacion.ts).
+  const cuentaConectada = enModoPrueba() || (await tieneCuentaConectada(cabana.propiedad.id));
+  const bloqueo = bloqueoReserva(cabana, enModoPrueba(), cuentaConectada);
   return {
     ...resto,
     volver: volverDesdeCabana({ ...cabana.propiedad, cabanasListadas: cabana.propiedad._count.cabanas }),
     precioDesde: precioDesde(tarifas),
     galeria: galeriaDeCabana({ ...cabana, propiedadSlug: cabana.propiedad.slug }),
     pendientes: datosPendientes(cabana.propiedad),
-    bloqueo: bloqueoReserva(cabana, enModoPrueba()),
+    bloqueo,
+    /** Enlace para reservar por WhatsApp cuando la cabaña no recibe reservas en línea; si no, null. */
+    reservaWhatsapp:
+      bloqueo === MENSAJE_SIN_PAGO_EN_LINEA
+        ? enlaceWhatsapp(cabana.propiedad.whatsapp, mensajeConsultaReserva(cabana.nombre))
+        : null,
   };
 });
 

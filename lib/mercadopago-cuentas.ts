@@ -92,6 +92,14 @@ export async function desconectarCuenta(admin: AdminSesion, propiedadId: string)
   return { ok: true };
 }
 
+/**
+ * ¿La propiedad tiene una cuenta de Mercado Pago conectada y vigente? Sin descifrar nada: lo usan
+ * las páginas públicas para decidir si se puede reservar en línea.
+ */
+export async function tieneCuentaConectada(propiedadId: string, ahora = new Date()): Promise<boolean> {
+  return (await db.cuentaMercadoPago.count({ where: { propiedadId, expiraEn: { gt: ahora } } })) > 0;
+}
+
 /** Estado de la conexión de las propiedades del admin, sin tokens. */
 export async function estadoCuentas(admin: AdminSesion) {
   const cuentas = await db.cuentaMercadoPago.findMany({

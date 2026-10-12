@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { ReservaPorWhatsapp } from "@/components/reserva-whatsapp";
+import { MENSAJE_SIN_PAGO_EN_LINEA } from "@/lib/publicacion";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -41,7 +43,9 @@ export default async function PaginaReservar({ params }: PageProps<"/reservar/[p
         </div>
       </header>
 
-      {datos.bloqueo ? (
+      {datos.bloqueo === MENSAJE_SIN_PAGO_EN_LINEA && datos.reservaWhatsapp ? (
+        <ReservaPorWhatsapp href={datos.reservaWhatsapp} />
+      ) : datos.bloqueo ? (
         <BloqueoPublicacion mensaje={datos.bloqueo} />
       ) : (
         <>
