@@ -176,7 +176,7 @@ export default async function PaginaCabana({ params }: Props) {
         {cabana.reservaWhatsapp ? (
           <div className="mx-auto flex max-w-xl items-center justify-between gap-4">
             <PrecioDesde precio={cabana.precioDesde} />
-            <BotonReservaWhatsapp href={cabana.reservaWhatsapp} className="shrink-0" />
+            <BotonReservaWhatsapp href={cabana.reservaWhatsapp} corto className="shrink-0" />
           </div>
         ) : cabana.bloqueo ? (
           <p className="mx-auto max-w-xl text-center text-sm text-tinta-suave">{cabana.bloqueo}</p>
