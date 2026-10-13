@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import type { MedioGaleria } from "@/lib/galeria";
+import { Carrusel } from "./carrusel";
 
 /** Ubicación de cada foto en la grilla de escritorio (4×2), sin huecos con 1 a 5+ fotos. */
 function claseEscritorio(i: number, total: number): string {
@@ -16,7 +17,7 @@ function claseEscritorio(i: number, total: number): string {
  * Galería de la cabaña. El primer medio es la portada.
  * - Fotos horizontales: carrusel en el celular y grilla con una foto grande en escritorio.
  * - Con videos o medios verticales (grabados con el celular): carrusel vertical 3:4 en el celular
- *   y fila de cuatro en escritorio, sin recortar el formato.
+ *   y fila de cuatro con flechas en escritorio, sin recortar el formato.
  * Videos: poster, preload="metadata", muted y playsInline (en iPhone no abre pantalla completa).
  * Imágenes: la portada con prioridad; el resto con lazy loading.
  */
@@ -31,9 +32,9 @@ export function Galeria({ medios, nombre, vertical = false }: { medios: MedioGal
 
   if (vertical) {
     return (
-      <div
-        className="sin-scrollbar flex snap-x snap-mandatory gap-1 overflow-x-auto md:gap-3 md:rounded-3xl"
-        aria-label={`Fotos y videos de ${nombre}`}
+      <Carrusel
+        etiqueta={`Fotos y videos de ${nombre}`}
+        className="sin-scrollbar flex snap-x snap-mandatory gap-1 overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-lago md:gap-3 md:rounded-3xl"
       >
         {medios.map((medio, i) => (
           <figure
@@ -44,7 +45,7 @@ export function Galeria({ medios, nombre, vertical = false }: { medios: MedioGal
             <Contador i={i} total={medios.length} />
           </figure>
         ))}
-      </div>
+      </Carrusel>
     );
   }
 
