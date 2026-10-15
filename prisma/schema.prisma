@@ -31,6 +31,10 @@ enum EstadoReserva {
   confirmada
   cancelada
   completada
+  pendiente_aprobacion // solicitud: el dueño debe aprobarla (cabana.requiere_aprobacion)
+  aprobada_pendiente_pago // aprobada: el huésped tiene el link de pago hasta expira_en
+  rechazada
+  expirada // el dueño no respondió o el huésped no pagó a tiempo
 
   @@map("estado_reserva")
 }
@@ -71,6 +75,10 @@ enum AccionAuditoria {
   eliminar_bloqueo
   conectar_mercadopago
   desconectar_mercadopago
+  aprobar
+  rechazar
+  nuevo_link_pago
+  configurar_cabana
 
   @@map("accion_auditoria")
 }
@@ -145,6 +153,10 @@ model Cabana {
   minNoches   Int      @default(1) @map("min_noches") // estadía mínima de la cabaña
   activa      Boolean  @default(true)
   demo        Boolean  @default(false) // cabaña de demostración (datos de ejemplo, no es un alojamiento real)
+  // Aprobación manual: las reservas web nacen como solicitud (pendiente_aprobacion) y se cobran al aprobarlas.
+  requiereAprobacion       Boolean @default(false) @map("requiere_aprobacion")
+  horasRespuestaAprobacion Int     @default(24) @map("horas_respuesta_aprobacion") // plazo del dueño para responder
+  horasParaPagar           Int     @default(24) @map("horas_para_pagar") // vigencia del link de pago al aprobar
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -208,8 +220,17 @@ model Reserva {
   abono           Int
   estado          EstadoReserva @default(pendiente_pago)
   origen          OrigenReserva @default(web)
-  expiraEn        DateTime?     @map("expira_en") @db.Timestamptz(3)
+  expiraEn        DateTime?     @map("expira_en") @db.Timestamptz(3) // plazo para pagar, o para que el dueño responda una solicitud
   notas           String?
+  // Solicitudes (cabana.requiere_aprobacion). Ver lib/aprobacion.ts.
+  aprobadaEn            DateTime? @map("aprobada_en") @db.Timestamptz(3)
+  linkPago              String?   @map("link_pago") // link de Mercado Pago creado al aprobar; solo lo ven el huésped y el dueño
+  linkPagoExpiraEn      DateTime? @map("link_pago_expira_en") @db.Timestamptz(3)
+  whatsappAbiertoEn     DateTime? @map("whatsapp_abierto_en") @db.Timestamptz(3) // el dueño abrió WhatsApp (no implica entregado)
+  recordatorioDuenoEn   DateTime? @map("recordatorio_dueno_en") @db.Timestamptz(3)
+  recordatorioHuespedEn DateTime? @map("recordatorio_huesped_en") @db.Timestamptz(3)
+  expiracionAvisadaEn   DateTime? @map("expiracion_avisada_en") @db.Timestamptz(3)
+  avisoFallido          String?   @map("aviso_fallido") // último aviso que no se pudo enviar, para mostrarlo en el panel
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
