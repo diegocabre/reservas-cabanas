@@ -9,10 +9,13 @@ import { EnlaceMiReserva } from "@/components/enlace-mi-reserva";
 import { BotonReservaWhatsapp } from "@/components/reserva-whatsapp";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { Ubicacion } from "@/components/ubicacion";
+import { ResenasCabana } from "@/components/cabana/resenas";
 import { obtenerCabanaPublica } from "@/lib/cabanas";
 import { imagenParaCompartir } from "@/lib/fotos";
-import { enModoPrueba } from "@/lib/sitio";
+import { enModoPrueba, urlDelSitio } from "@/lib/sitio";
 import { formatearCLP } from "@/lib/formato";
+import { resenasPublicas } from "@/lib/resenas";
+import { jsonLdCabana, jsonParaScript } from "@/lib/resenas-reglas";
 
 // Cada cabaña se renderiza en su primera visita, queda en caché y se regenera cada 5 minutos
 // (así el precio "desde" sigue a las tarifas y un peak desde Instagram no golpea la base).
@@ -70,9 +73,24 @@ export default async function PaginaCabana({ params }: Props) {
 
   const urlReserva = `/reservar/${cabana.propiedad.slug}/${cabana.slug}`;
   const prueba = enModoPrueba();
+  // Reseñas publicadas (se regeneran con la página, cada 5 minutos). JSON-LD solo si hay reseñas reales.
+  const resenas = await resenasPublicas(cabana.id);
+  const sitio = urlDelSitio();
+  const portada = cabana.galeria[0];
+  const jsonLd = jsonLdCabana(
+    {
+      nombre: cabana.nombre,
+      url: new URL(`/${cabana.propiedad.slug}/${cabana.slug}`, sitio).toString(),
+      imagen: portada ? new URL(portada.imagen, sitio).toString() : null,
+      descripcion: cabana.descripcion,
+      ubicacion: cabana.propiedad.ubicacion,
+    },
+    resenas,
+  );
 
   return (
     <main className="flex-1 pb-[calc(6.5rem+env(safe-area-inset-bottom))] md:pb-20">
+      {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonParaScript(jsonLd) }} />}
       <div className="relative md:mx-auto md:max-w-6xl md:px-6 md:pt-3">
         {/* Celular: flota sobre la portada. Escritorio: sobre la galería, para no tapar las fotos al avanzar. */}
         <Link
@@ -147,6 +165,7 @@ export default async function PaginaCabana({ params }: Props) {
               </p>
             </section>
           )}
+          <ResenasCabana resenas={resenas} className="mt-10" />
           <EnlaceMiReserva className="mt-10" />
         </article>
 

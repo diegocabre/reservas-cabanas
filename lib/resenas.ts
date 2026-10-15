@@ -29,6 +29,7 @@ import {
   LARGO_MINIMO_COMENTARIO,
   MAXIMO_EDICIONES,
   MINUTOS_ENTRE_LINKS,
+  MOTIVOS_REPORTE,
   debeDesbloquear,
   elegibilidad,
   esEtiqueta,
@@ -49,6 +50,7 @@ import {
   tocaRecordatorio,
   venceTokenResena,
   type Calificacion,
+  type MotivoReporte,
   type Notas,
   type ResenaPublica,
 } from "@/lib/resenas-reglas";
@@ -165,7 +167,8 @@ const SELECT_CICLO_TOKEN = {
 
 export type Invitacion =
   | { estado: "invalido" }
-  | { estado: "vencido" | "no_elegible"; cabana: string; motivo: string }
+  | { estado: "vencido"; cabana: string; motivo: string }
+  | { estado: "no_elegible"; cabana: string; motivo: string }
   | { estado: "publicada"; cabana: string; urlCabana: string }
   | {
       estado: "formulario";
@@ -405,14 +408,6 @@ export function responderResena(admin: AdminSesion, resenaId: string, texto: str
     return { nuevo: true };
   });
 }
-
-export const MOTIVOS_REPORTE = {
-  insultos: "Insultos o lenguaje ofensivo",
-  datos_personales: "Contiene datos personales",
-  no_corresponde: "No corresponde a esta estadía",
-} as const;
-
-export type MotivoReporte = keyof typeof MOTIVOS_REPORTE;
 
 /** El dueño reporta una reseña: queda en la cola del superadmin. Un reporte pendiente por usuario y reseña. */
 export function reportarResena(admin: AdminSesion, resenaId: string, motivo: MotivoReporte, detalle?: string) {

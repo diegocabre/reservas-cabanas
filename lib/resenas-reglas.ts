@@ -254,6 +254,15 @@ export function jsonLdCabana(
 /** JSON dentro de <script>: escapa "<" para que un comentario no pueda cerrar la etiqueta. */
 export const jsonParaScript = (datos: unknown) => JSON.stringify(datos).replace(/</g, "\\u003c");
 
+/** Motivos con que el dueño reporta una reseña (mismos valores que el enum motivo_reporte). */
+export const MOTIVOS_REPORTE = {
+  insultos: "Insultos o lenguaje ofensivo",
+  datos_personales: "Contiene datos personales",
+  no_corresponde: "No corresponde a esta estadía",
+} as const;
+
+export type MotivoReporte = keyof typeof MOTIVOS_REPORTE;
+
 // ---------------------------------------------------------------------------------------------
 // Reseñas del huésped (privadas)
 // ---------------------------------------------------------------------------------------------
