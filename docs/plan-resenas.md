@@ -63,6 +63,7 @@ RLS (`panel_admin`):
 11. **Las reseñas de la cabaña y sus acciones no van a la tabla de auditoría** (no se amplió el enum): las tablas nuevas ya guardan autor, fecha y resolución.
 12. **JSON-LD:** `VacationRental` con `AggregateRating` y hasta 10 `Review`; Google suele no mostrar estrellas de reseñas propias de un negocio, pero el marcado es válido e indexable.
 13. **Tope de 100 reseñas** por cabaña en la página (comentado como atajo en el código).
+14. **Reseñas de reservas de prueba nunca son públicas:** si la reserva tiene `[PRUEBA]` al inicio de `notas`, su reseña se publica para el dueño (panel, con aviso) pero `resenasPublicas()` la excluye, así que no llega a la página ni al JSON-LD. Así el piloto se prueba en producción sin reseñas falsas. Ojo: las reservas creadas mientras el sitio está en modo prueba llevan esa marca, incluidas las reales.
 
 ## Variables de entorno nuevas
 
