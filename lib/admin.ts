@@ -1,7 +1,8 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { RUTA_LOGIN, RUTA_SALIR } from "@/lib/acceso";
 import { cargarAdmin, type AdminSesion } from "@/lib/panel-acceso";
+import { cargarSuperadmin, type Superadmin } from "@/lib/resenas";
 import { clienteSupabase } from "@/lib/supabase/servidor";
 
 // Sesión del panel. Toda página y Server Action de /admin parte con requerirAdmin() y pasa el
@@ -29,4 +30,18 @@ export async function requerirAdmin(): Promise<AdminSesion> {
   const admin = await obtenerAdmin();
   if (admin) return admin;
   redirect((await usuarioDeLaSesion()) ? `${RUTA_SALIR}?motivo=sin-acceso` : RUTA_LOGIN);
+}
+
+/** Superadmin de la plataforma con sesión (tabla superadmin), o null. Una vez por request. */
+export const obtenerSuperadmin = cache(async (): Promise<Superadmin | null> => {
+  const usuarioId = await usuarioDeLaSesion();
+  return usuarioId ? cargarSuperadmin(usuarioId) : null;
+});
+
+/** Superadmin de la sesión, o 404 (la cola de moderación no existe para nadie más). */
+export async function requerirSuperadmin(): Promise<Superadmin> {
+  await requerirAdmin();
+  const sa = await obtenerSuperadmin();
+  if (!sa) notFound();
+  return sa;
 }

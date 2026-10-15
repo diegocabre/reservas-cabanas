@@ -17,6 +17,7 @@ export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSl
   const cabana = await db.cabana.findFirst({
     where: { slug: cabanaSlug, activa: true, propiedad: { slug: propiedadSlug } },
     select: {
+      id: true,
       nombre: true,
       slug: true,
       capacidad: true,

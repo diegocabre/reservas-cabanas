@@ -15,9 +15,11 @@ export type PlantillaHuesped =
   | "recordatorio_pago"
   | "solicitud_rechazada"
   | "solicitud_expirada" // el dueño no respondió a tiempo
-  | "pago_expirado";
+  | "pago_expirado"
+  | "invitacion_resena" // reseñas (lib/resenas.ts): llevan datos.urlResena
+  | "recordatorio_resena";
 
-export type PlantillaDueno = "nueva_solicitud" | "recordatorio_solicitud" | "pago_expirado";
+export type PlantillaDueno = "nueva_solicitud" | "recordatorio_solicitud" | "pago_expirado" | "resena_huesped_pendiente";
 
 export interface DatosAviso {
   codigo: string;
@@ -41,6 +43,7 @@ export interface DatosAviso {
   urlReserva: string; // página pública /reserva/[codigo]
   urlReservar: string; // volver a reservar la cabaña
   urlPanel: string; // detalle en /admin
+  urlResena?: string | null; // link único para dejar la reseña (invitación y recordatorio)
 }
 
 export type ResultadoAviso = { ok: true } | { ok: false; error: string };
@@ -53,10 +56,16 @@ export const NOMBRE_AVISO: Record<PlantillaHuesped | `dueno_${PlantillaDueno}`, 
   solicitud_rechazada: "Correo de rechazo al huésped",
   solicitud_expirada: "Aviso de solicitud expirada al huésped",
   pago_expirado: "Aviso de link vencido al huésped",
+  invitacion_resena: "Invitación a dejar una reseña",
+  recordatorio_resena: "Recordatorio de reseña al huésped",
   dueno_nueva_solicitud: "Aviso de nueva solicitud al dueño",
   dueno_recordatorio_solicitud: "Recordatorio de solicitud al dueño",
   dueno_pago_expirado: "Aviso de link vencido al dueño",
+  dueno_resena_huesped_pendiente: "Recordatorio de reseña del huésped al dueño",
 };
+
+/** Correos de reseñas: no muestran precios ni "Solicitud" en el encabezado. */
+const PLANTILLAS_RESENA: PlantillaHuesped[] = ["invitacion_resena", "recordatorio_resena"];
 
 const primerNombre = (nombre: string) => nombre.trim().split(/\s+/)[0];
 
@@ -127,6 +136,26 @@ export function contenidoHuesped(plantilla: PlantillaHuesped, d: DatosAviso) {
         ],
         boton: { texto: "Enviar otra solicitud", url: d.urlReservar },
       };
+    case "invitacion_resena":
+      return {
+        asunto: `${prefijo}¿Cómo te fue en ${d.cabana}?`,
+        titulo: `${nombre}, ¡gracias por quedarte en ${d.cabana}!`,
+        parrafos: [
+          "¿Nos cuentas cómo te fue? Son cinco estrellas y un comentario; no necesitas crear una cuenta.",
+          "Tu reseña se publica cuando el anfitrión escriba la suya o a los 14 días, lo que pase primero. El link es personal y vence en 30 días.",
+        ],
+        boton: d.urlResena ? { texto: "Dejar mi reseña", url: d.urlResena } : null,
+      };
+    case "recordatorio_resena":
+      return {
+        asunto: `${prefijo}Todavía puedes dejar tu reseña · ${d.cabana}`,
+        titulo: `${nombre}, ¿nos dejas tu reseña?`,
+        parrafos: [
+          `Tu opinión sobre ${d.cabana} ayuda a otros viajeros y al anfitrión. Te toma un par de minutos.`,
+          "El link es personal y vence a los 30 días de tu salida.",
+        ],
+        boton: d.urlResena ? { texto: "Dejar mi reseña", url: d.urlResena } : null,
+      };
   }
 }
 
@@ -167,6 +196,16 @@ export function contenidoDueno(plantilla: PlantillaDueno, d: DatosAviso) {
           estadia,
           huesped,
           d.urlPanel,
+        ],
+      };
+    case "resena_huesped_pendiente":
+      return {
+        asunto: `${prefijo}¿Cómo fue ${d.huespedNombre} como huésped? · ${d.cabana}`,
+        texto: [
+          `${d.huespedNombre} terminó su estadía (${d.codigo}).`,
+          estadia,
+          "Deja tu reseña privada del huésped: solo la ven los administradores de tu propiedad y, después de publicada, el huésped. Tienes 30 días desde el check-out.",
+          `Escribirla: ${d.urlPanel}`,
         ],
       };
   }
@@ -228,7 +267,30 @@ export async function notificarHuesped(canal: CanalAviso, plantilla: PlantillaHu
         total: d.total,
         abono: d.abono,
         prueba: d.prueba,
+        ...(PLANTILLAS_RESENA.includes(plantilla) ? { etiqueta: "Reserva", mostrarPrecio: false } : {}),
       }),
+    }),
+  );
+}
+
+/**
+ * Link de acceso del huésped a sus datos y reseñas (Ley 21.719). Texto plano. Nunca lanza.
+ * No depende de una reserva: el huésped lo pide con su email desde /mis-datos.
+ */
+export async function enviarLinkAccesoHuesped(email: string, url: string): Promise<ResultadoAviso> {
+  const resend = clienteResend();
+  if (!resend) return { ok: false, error: "RESEND_API_KEY no configurada" };
+  if (!esEmailEnviable(email)) return SIN_DESTINATARIO;
+  return conReintentos(() =>
+    resend.emails.send({
+      from: `Reservas Cabañas Sur <${DIRECCION_REMITENTE}>`,
+      to: email,
+      subject: "Tu link para ver tus datos y reseñas",
+      text: [
+        "Pediste ver la información que guardamos sobre ti y las reseñas que los anfitriones escribieron sobre tus estadías.",
+        `Entra aquí (el link vence en 24 horas): ${url}`,
+        "Si no lo pediste tú, ignora este correo: nadie puede entrar sin este link.",
+      ].join("\n\n"),
     }),
   );
 }

@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/expirar-reservas",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/resenas",
+      "schedule": "0 13 * * *"
     }
   ]
 }

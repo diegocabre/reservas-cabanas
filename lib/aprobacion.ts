@@ -298,11 +298,16 @@ async function registrarAviso(reservaId: string, clave: keyof typeof NOMBRE_AVIS
 }
 
 /** Avisa al huésped (por ahora solo por correo). Nunca lanza. */
-export async function avisarHuesped(codigo: string, plantilla: PlantillaHuesped, motivo: string | null = null): Promise<ResultadoAviso> {
+export async function avisarHuesped(
+  codigo: string,
+  plantilla: PlantillaHuesped,
+  motivo: string | null = null,
+  urlResena: string | null = null, // invitación y recordatorio de reseña (lib/resenas.ts)
+): Promise<ResultadoAviso> {
   try {
     const cargada = await cargarDatosAviso(codigo, motivo);
     if (!cargada) return { ok: false, error: "No existe la reserva" };
-    const resultado = await notificarHuesped("email", plantilla, cargada.datos);
+    const resultado = await notificarHuesped("email", plantilla, { ...cargada.datos, urlResena });
     await registrarAviso(cargada.id, plantilla, resultado);
     return resultado;
   } catch (e) {

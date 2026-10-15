@@ -12,6 +12,7 @@ export interface SolicitudResumen {
   estado: EstadoReserva;
   cabana: string;
   huesped: string;
+  email: string;
   telefono: string;
   checkIn: string;
   checkOut: string;
@@ -19,6 +20,8 @@ export interface SolicitudResumen {
   mensaje: string | null;
   expiraEn: Date | null;
   avisoFallido: string | null;
+  /** Historial del huésped con este dueño (reseñas privadas); null si las reseñas del huésped están apagadas. */
+  historial?: { texto: string; etiquetas: string[]; otros: string | null } | null;
 }
 
 export function SeccionSolicitudes({
@@ -62,6 +65,17 @@ export function SeccionSolicitudes({
                     {s.telefono}
                   </a>
                 </p>
+                {s.historial && (
+                  <Link
+                    href={`/admin/reservas/${s.codigo}#historial-huesped`}
+                    className="mt-2 block rounded-xl border border-linea px-3.5 py-2.5 text-sm hover:bg-papel-hondo/60"
+                  >
+                    <span className="font-semibold">Historial contigo:</span> {s.historial.texto}
+                    {s.historial.etiquetas.length > 0 && <span className="text-tinta-suave"> · {s.historial.etiquetas.join(", ")}</span>}
+                    {s.historial.otros && <span className="block text-tinta-suave">Otros anfitriones: {s.historial.otros}</span>}
+                    <span className="block font-semibold text-lago">Ver detalle</span>
+                  </Link>
+                )}
                 {s.mensaje && <p className="mt-2 rounded-xl bg-papel-hondo/60 px-3.5 py-2.5 text-sm whitespace-pre-line">«{s.mensaje}»</p>}
                 {s.expiraEn && (
                   <p className="mt-2 text-sm">
