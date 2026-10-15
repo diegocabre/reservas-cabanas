@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function LayoutPanel({ children }: LayoutProps<"/admin">) {
   // Protege las páginas del panel. Las Server Actions llaman a requerirAdmin() por su cuenta.
   const admin = await requerirAdmin();
-  const superadmin = await obtenerSuperadmin();
+  const superadmin = resenasCabanaActivas() ? await obtenerSuperadmin() : null;
 
   return (
     <div className="flex flex-1 flex-col">

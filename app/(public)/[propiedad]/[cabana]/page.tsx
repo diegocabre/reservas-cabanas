@@ -15,7 +15,7 @@ import { imagenParaCompartir } from "@/lib/fotos";
 import { enModoPrueba, urlDelSitio } from "@/lib/sitio";
 import { formatearCLP } from "@/lib/formato";
 import { resenasPublicas } from "@/lib/resenas";
-import { jsonLdCabana, jsonParaScript } from "@/lib/resenas-reglas";
+import { jsonLdCabana, jsonParaScript, resenasCabanaActivas } from "@/lib/resenas-reglas";
 
 // Cada cabaña se renderiza en su primera visita, queda en caché y se regenera cada 5 minutos
 // (así el precio "desde" sigue a las tarifas y un peak desde Instagram no golpea la base).
@@ -74,7 +74,8 @@ export default async function PaginaCabana({ params }: Props) {
   const urlReserva = `/reservar/${cabana.propiedad.slug}/${cabana.slug}`;
   const prueba = enModoPrueba();
   // Reseñas publicadas (se regeneran con la página, cada 5 minutos). JSON-LD solo si hay reseñas reales.
-  const resenas = await resenasPublicas(cabana.id);
+  // Apagadas: no se consulta nada (el deploy no depende de las tablas de reseñas).
+  const resenas = resenasCabanaActivas() ? await resenasPublicas(cabana.id) : [];
   const sitio = urlDelSitio();
   const portada = cabana.galeria[0];
   const jsonLd = jsonLdCabana(
