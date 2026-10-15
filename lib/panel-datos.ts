@@ -1,7 +1,7 @@
 // Consultas del panel sobre reservas. Toda función recibe el admin de la sesión y aplica las dos
 // defensas de lib/panel-acceso.ts: filtro por sus propiedades y RLS (comoAdmin).
 
-import { reservaOcupa } from "@/lib/disponibilidad";
+import { plazoVencido } from "@/lib/disponibilidad";
 import { terminosBusqueda, type FiltrosReservas } from "@/lib/filtros-reservas";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { comoAdmin, deSusPropiedades, type AdminSesion } from "@/lib/panel-acceso";
@@ -184,7 +184,7 @@ export async function buscarReservas(admin: AdminSesion, f: FiltrosReservas) {
     reservas: filas.slice(0, MAXIMO_LISTA).map((r) => ({
       ...aReservaPanel(r),
       origen: r.origen,
-      vencida: r.estado === "pendiente_pago" && !reservaOcupa(r, ahora),
+      vencida: plazoVencido(r, ahora),
     })),
   };
 }
@@ -223,7 +223,7 @@ export async function detalleReserva(admin: AdminSesion, codigo: string) {
     precioNoche: r.total % noches === 0 ? r.total / noches : null,
     pagado,
     saldo: r.total - pagado,
-    vencida: r.estado === "pendiente_pago" && !reservaOcupa(r, new Date()),
+    vencida: plazoVencido(r, new Date()),
   };
 }
 

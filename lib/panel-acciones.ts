@@ -33,7 +33,7 @@ type FilaReserva = {
 };
 
 /** Lee y bloquea la reserva, solo si es de una propiedad del admin (además RLS la filtra). */
-async function bloquearReserva(tx: TxPanel, admin: AdminSesion, codigo: string): Promise<FilaReserva> {
+export async function bloquearReserva(tx: TxPanel, admin: AdminSesion, codigo: string): Promise<FilaReserva> {
   const ids = idsPropiedades(admin);
   const filas = await tx.$queryRaw<FilaReserva[]>`
     select r.id, r.estado::text as estado, r.total, r.notas, r.cabana_id, r.check_in, r.check_out
@@ -44,10 +44,16 @@ async function bloquearReserva(tx: TxPanel, admin: AdminSesion, codigo: string):
   return filas[0];
 }
 
-function auditar(
+export function auditar(
   tx: TxPanel,
   admin: AdminSesion,
-  datos: { reservaId: string; accion: "confirmar" | "cancelar" | "registrar_pago" | "marcar_revisado"; antes: EstadoReserva; despues: EstadoReserva; detalle?: string },
+  datos: {
+    reservaId: string;
+    accion: "confirmar" | "cancelar" | "registrar_pago" | "marcar_revisado" | "aprobar" | "rechazar" | "nuevo_link_pago";
+    antes: EstadoReserva;
+    despues: EstadoReserva;
+    detalle?: string;
+  },
 ) {
   return tx.auditoria.create({
     data: {
@@ -63,9 +69,13 @@ function auditar(
 }
 
 /** Corre la acción y traduce los errores esperables a un mensaje para el dueño. */
-export async function ejecutar<T extends object>(admin: AdminSesion, fn: (tx: TxPanel) => Promise<T>): Promise<Resultado<T>> {
+export async function ejecutar<T extends object>(
+  admin: AdminSesion,
+  fn: (tx: TxPanel) => Promise<T>,
+  opciones?: { timeout?: number },
+): Promise<Resultado<T>> {
   try {
-    return { ok: true, ...(await comoAdmin(admin, fn)) };
+    return { ok: true, ...(await comoAdmin(admin, fn, opciones)) };
   } catch (e) {
     if (e instanceof ErrorAccion) return { ok: false, error: e.message };
     if (codigoPostgres(e) === TRASLAPE_RESERVA) {
@@ -116,7 +126,8 @@ export function cancelarReserva(admin: AdminSesion, codigo: string, motivo: stri
     const t = validarTransicion("cancelar", r.estado);
     if (!t.ok) throw new ErrorAccion(t.error);
 
-    await tx.reserva.update({ where: { id: r.id }, data: { estado: t.hacia, expiraEn: null } });
+    // Una solicitud aprobada cancelada: su link de pago deja de ofrecerse.
+    await tx.reserva.update({ where: { id: r.id }, data: { estado: t.hacia, expiraEn: null, linkPagoExpiraEn: null } });
     await auditar(tx, admin, { reservaId: r.id, accion: "cancelar", antes: r.estado, despues: t.hacia, detalle: m.motivo });
     return { estado: t.hacia };
   });

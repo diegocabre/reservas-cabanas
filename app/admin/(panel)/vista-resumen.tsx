@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NOMBRE_ESTADO } from "@/lib/estados-reserva";
 import { formatearCLP, formatearDiaLargo, formatearFechaCorta } from "@/lib/formato";
 import { describirRango, nombreMotivo } from "@/lib/bloqueos";
 import {
@@ -18,7 +19,6 @@ import { DIAS_RESUMEN } from "@/lib/panel-datos";
 import { MARCA_REVISAR } from "@/lib/pagos";
 import { FilaReserva, Lista, Seccion, TarjetaLlegada, TiraOcupacion, Vacio } from "./resumen";
 
-const ESTADOS = { pendiente_pago: "pendiente de pago", confirmada: "confirmada", cancelada: "cancelada", completada: "completada" };
 
 export interface PropsResumen {
   /** Día en Chile, "YYYY-MM-DD". */
@@ -86,7 +86,7 @@ export function VistaResumen({ hoy, propiedad, pendientes, modoPrueba, reservas,
                   {r.huesped} <span className="font-semibold text-tinta-suave">· {r.codigo}</span>
                 </Link>
                 <p className="text-tinta-suave">
-                  {conCabana(r, `llegada ${formatearFechaCorta(String(r.checkIn))}, reserva ${ESTADOS[r.estado]}`)}
+                  {conCabana(r, `llegada ${formatearFechaCorta(String(r.checkIn))}, reserva ${NOMBRE_ESTADO[r.estado].toLowerCase()}`)}
                 </p>
                 {r.notas
                   ?.split("\n")

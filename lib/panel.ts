@@ -1,6 +1,7 @@
 // Cálculos del panel del dueño: funciones puras sobre reservas ya cargadas (filtradas por propiedad).
 // Rangos [check_in, check_out): el día de salida no es una noche ocupada.
 
+import type { EstadoReserva } from "@/lib/estados-reserva";
 import { MARCA_REVISAR } from "@/lib/pagos";
 import { aFechaIso, nochesEntre, type Fecha } from "@/lib/precios";
 
@@ -10,7 +11,7 @@ export interface ReservaPanel {
   huesped: string;
   checkIn: Fecha;
   checkOut: Fecha;
-  estado: "pendiente_pago" | "confirmada" | "cancelada" | "completada";
+  estado: EstadoReserva;
   total: number;
   /** Suma de pagos aprobados. */
   pagado: number;

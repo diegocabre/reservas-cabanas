@@ -2,10 +2,12 @@
 //
 // Reglas (ver CLAUDE.md):
 // - Rangos semiabiertos [desde, hasta): el día de salida queda libre para otra llegada.
-// - Ocupan noches: reservas `confirmada`, reservas `pendiente_pago` no vencidas y bloqueos.
+// - Ocupan noches: reservas `confirmada`, las que tienen plazo (`pendiente_pago`, solicitudes
+//   `pendiente_aprobacion` y `aprobada_pendiente_pago`) mientras no venzan, y bloqueos.
 //
 // Funciones puras: reciben los rangos ya cargados y devuelven fechas "YYYY-MM-DD".
 
+import { tienePlazo } from "@/lib/estados-reserva";
 import { aFechaIso, nochesEntre, RangoInvalidoError, type Fecha } from "@/lib/precios";
 
 export interface RangoOcupado {
@@ -16,12 +18,16 @@ export interface RangoOcupado {
 /** Minutos que tiene el huésped para pagar el abono antes de que se liberen las fechas. */
 export const MINUTOS_PARA_PAGAR = 30;
 
-/** Una reserva ocupa fechas si está confirmada, o pendiente de pago y aún no vence. */
+/** Una reserva ocupa fechas si está confirmada, o en un estado con plazo que aún no vence. */
 export function reservaOcupa(r: { estado: string; expiraEn: Date | null }, ahora: Date): boolean {
   if (r.estado === "confirmada") return true;
-  if (r.estado === "pendiente_pago") return r.expiraEn === null || r.expiraEn > ahora;
+  if (tienePlazo(r.estado)) return r.expiraEn === null || r.expiraEn > ahora;
   return false;
 }
+
+/** ¿Venció el plazo (de pago o de respuesta del dueño) de una reserva que aún no se marca? */
+export const plazoVencido = (r: { estado: string; expiraEn: Date | null }, ahora: Date) =>
+  tienePlazo(r.estado) && !reservaOcupa(r, ahora);
 
 /** Conjunto de noches ocupadas ("YYYY-MM-DD") a partir de reservas y bloqueos. */
 export function nochesOcupadas(rangos: RangoOcupado[]): Set<string> {

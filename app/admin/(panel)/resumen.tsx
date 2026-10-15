@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { IconoWhatsapp } from "@/components/iconos";
+import { tienePlazo } from "@/lib/estados-reserva";
 import { formatearCLP, formatearFechaCorta } from "@/lib/formato";
 import type { ReservaPanel } from "@/lib/panel";
 import { enlaceWhatsapp, mensajeAlHuesped } from "@/lib/whatsapp";
@@ -198,6 +199,10 @@ const ESTILO_ESTADO = {
   confirmada: "bg-musgo/15 text-musgo",
   cancelada: "bg-tinta/8 text-tinta-suave",
   completada: "bg-lago/10 text-lago",
+  pendiente_aprobacion: "bg-lago/10 text-lago",
+  aprobada_pendiente_pago: "bg-madera-clara/25 text-madera",
+  rechazada: "bg-tinta/8 text-tinta-suave",
+  expirada: "bg-tinta/8 text-tinta-suave",
   vencida: "bg-tinta/8 text-tinta-suave",
   revisar: "bg-fuego/15 text-fuego-hondo",
 } as const;
@@ -207,13 +212,17 @@ const TEXTO_ESTADO = {
   confirmada: "Confirmada",
   cancelada: "Cancelada",
   completada: "Completada",
+  pendiente_aprobacion: "Solicitud pendiente",
+  aprobada_pendiente_pago: "Esperando pago",
+  rechazada: "Rechazada",
+  expirada: "Expirada",
   vencida: "Vencida sin pagar",
   revisar: "Revisar pago",
 } as const;
 
-/** Etiqueta de estado de una reserva. Una pendiente cuyo plazo venció se muestra como vencida. */
+/** Etiqueta de estado de una reserva. Una con plazo vencido (aún sin marcar por el cron) se muestra como vencida. */
 export function EtiquetaEstado({ estado, vencida = false }: { estado: ReservaPanel["estado"] | "revisar"; vencida?: boolean }) {
-  const clave = vencida && estado === "pendiente_pago" ? "vencida" : estado;
+  const clave = vencida && estado !== "revisar" && tienePlazo(estado) ? (estado === "pendiente_pago" ? "vencida" : "expirada") : estado;
   return (
     <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap ${ESTILO_ESTADO[clave]}`}>
       {TEXTO_ESTADO[clave]}

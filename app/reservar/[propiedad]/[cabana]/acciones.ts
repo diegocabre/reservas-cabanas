@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
+import { avisarSolicitudNueva } from "@/lib/aprobacion";
 import { enviarEmailReservaApartada } from "@/lib/emails";
 import { esquemaReserva } from "@/lib/reserva-esquema";
 import { crearReservaWeb } from "@/lib/reservas";
@@ -29,8 +30,13 @@ export async function crearReserva(_previo: EstadoFormulario, formData: FormData
   const resultado = await crearReservaWeb(validado.data);
   if (!resultado.ok) return { error: resultado.error, valores };
 
-  // El link para pagar queda en el email del huésped, por si cierra la página.
   const { codigo } = resultado;
-  after(() => enviarEmailReservaApartada(codigo));
+  if (resultado.estado === "pendiente_aprobacion") {
+    // Solicitud: "recibimos tu solicitud" al huésped y aviso al dueño con el link al panel.
+    after(() => avisarSolicitudNueva(codigo));
+  } else {
+    // El link para pagar queda en el email del huésped, por si cierra la página.
+    after(() => enviarEmailReservaApartada(codigo));
+  }
   redirect(`/reserva/${codigo}`);
 }

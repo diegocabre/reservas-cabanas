@@ -3,11 +3,22 @@
 
 import { normalizarCodigo } from "@/lib/codigo";
 
-export const ESTADOS_FILTRO = ["todas", "pendiente_pago", "confirmada", "cancelada", "completada", "revisar"] as const;
+export const ESTADOS_FILTRO = [
+  "todas",
+  "pendiente_aprobacion",
+  "aprobada_pendiente_pago",
+  "pendiente_pago",
+  "confirmada",
+  "cancelada",
+  "completada",
+  "revisar",
+] as const;
 export type EstadoFiltro = (typeof ESTADOS_FILTRO)[number];
 
 export const NOMBRE_FILTRO: Record<EstadoFiltro, string> = {
   todas: "Todas",
+  pendiente_aprobacion: "Solicitudes",
+  aprobada_pendiente_pago: "Esperando pago",
   pendiente_pago: "Pendientes",
   confirmada: "Confirmadas",
   cancelada: "Canceladas",

@@ -39,28 +39,49 @@ async function vendedorDePropiedad(propiedadId: string): Promise<string | null> 
 
 export type ResultadoInicioPago = { ok: true; url: string } | { ok: false; error: string };
 
+const SELECT_COBRO = {
+  codigo: true,
+  abono: true,
+  estado: true,
+  expiraEn: true,
+  huespedEmail: true,
+  linkPago: true,
+  linkPagoExpiraEn: true,
+  cabana: { select: { nombre: true, demo: true, propiedad: { select: { id: true, ...SELECT_PUBLICACION } } } },
+} as const;
+
 /** Crea la preferencia de pago del abono y devuelve la URL de Checkout Pro. */
 export async function iniciarPagoAbono(codigo: string): Promise<ResultadoInicioPago> {
-  const reserva = await db.reserva.findUnique({
-    where: { codigo },
-    select: {
-      codigo: true,
-      abono: true,
-      estado: true,
-      expiraEn: true,
-      huespedEmail: true,
-      cabana: { select: { nombre: true, demo: true, propiedad: { select: { id: true, ...SELECT_PUBLICACION } } } },
-    },
-  });
+  const reserva = await db.reserva.findUnique({ where: { codigo }, select: SELECT_COBRO });
   if (!reserva) return { ok: false, error: "No encontramos esa reserva." };
   // Las cabañas demo nunca cobran; las con datos PENDIENTE solo en modo prueba.
   const bloqueo = bloqueoCobro(reserva.cabana, enModoPrueba());
   if (bloqueo) return { ok: false, error: bloqueo };
-  if (reserva.estado !== "pendiente_pago") return { ok: false, error: "Esta reserva no tiene un pago pendiente." };
   if (!reserva.expiraEn || !reservaOcupa(reserva, new Date())) {
     return { ok: false, error: "El plazo para pagar el abono terminó y las fechas se liberaron." };
   }
+  // Solicitud aprobada: el huésped paga con el MISMO link que recibió por correo y WhatsApp.
+  if (reserva.estado === "aprobada_pendiente_pago" && reserva.linkPago) return { ok: true, url: reserva.linkPago };
+  if (reserva.estado !== "pendiente_pago") return { ok: false, error: "Esta reserva no tiene un pago pendiente." };
+  return crearPreferencia(reserva, reserva.expiraEn);
+}
 
+/**
+ * Link de pago de una solicitud que el dueño está aprobando: vence en `expiraEn` (ahora + horas
+ * para pagar de la cabaña), no en el plazo de la solicitud. Lo llama lib/aprobacion.ts.
+ */
+export async function crearLinkPagoSolicitud(codigo: string, expiraEn: Date): Promise<ResultadoInicioPago> {
+  const reserva = await db.reserva.findUnique({ where: { codigo }, select: SELECT_COBRO });
+  if (!reserva) return { ok: false, error: "No encontramos esa reserva." };
+  const bloqueo = bloqueoCobro(reserva.cabana, enModoPrueba());
+  if (bloqueo) return { ok: false, error: bloqueo };
+  return crearPreferencia(reserva, expiraEn);
+}
+
+async function crearPreferencia(
+  reserva: { codigo: string; abono: number; huespedEmail: string; cabana: { nombre: string; propiedad: { id: string } } },
+  expiraEn: Date,
+): Promise<ResultadoInicioPago> {
   const credencial = await credencialDePropiedad(reserva.cabana.propiedad.id);
   if (!credencial.ok) return credencial;
 
@@ -72,7 +93,7 @@ export async function iniciarPagoAbono(codigo: string): Promise<ResultadoInicioP
       cabana: reserva.cabana.nombre,
       abono: reserva.abono,
       emailHuesped: enModoPrueba() ? null : reserva.huespedEmail,
-      expiraEn: reserva.expiraEn,
+      expiraEn,
       urlSitio: urlDelSitio(),
     }),
   });
@@ -172,7 +193,14 @@ export async function registrarPagoMercadoPago(
     return "ya_registrado";
   }
 
-  // Pago aprobado: confirmar. Si la reserva se había cancelado por vencer, se intenta reactivar;
+  // Una solicitud rechazada por el dueño nunca se confirma sola, aunque llegue un pago.
+  if (reserva.estado === "rechazada") {
+    await anotarRevision(reserva.id, reserva.notas, `pago ${refExterna} aprobado en una solicitud rechazada: reembolsar`);
+    return "revisar";
+  }
+
+  // Pago aprobado: confirmar (también una solicitud aprobada_pendiente_pago, o una expirada si las
+  // fechas siguen libres). Si la reserva se había cancelado por vencer, se intenta reactivar;
   // si mientras tanto otra reserva tomó esas fechas, Postgres lo impide y queda para revisión.
   try {
     const bloqueada = await db.$transaction(async (tx) => {
@@ -183,7 +211,7 @@ export async function registrarPagoMercadoPago(
         where: { cabanaId: reserva.cabanaId, desde: { lt: reserva.checkOut }, hasta: { gt: reserva.checkIn } },
       });
       if (bloqueos > 0) return true;
-      await tx.reserva.update({ where: { id: reserva.id }, data: { estado: "confirmada", expiraEn: null } });
+      await tx.reserva.update({ where: { id: reserva.id }, data: { estado: "confirmada", expiraEn: null, avisoFallido: null } });
       return false;
     });
     if (bloqueada) {

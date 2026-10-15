@@ -26,6 +26,10 @@ const ESTADOS = {
   confirmada: { texto: "Confirmada", clase: "bg-musgo/15 text-musgo" },
   cancelada: { texto: "Cancelada", clase: "bg-tinta/10 text-tinta-suave" },
   completada: { texto: "Completada", clase: "bg-lago/10 text-lago" },
+  pendiente_aprobacion: { texto: "Solicitud enviada", clase: "bg-lago/10 text-lago" },
+  aprobada_pendiente_pago: { texto: "Aprobada: falta el pago", clase: "bg-madera-clara/25 text-madera" },
+  rechazada: { texto: "No aprobada", clase: "bg-tinta/10 text-tinta-suave" },
+  expirada: { texto: "Expirada", clase: "bg-tinta/10 text-tinta-suave" },
 } as const;
 
 export default async function PaginaReserva({ params, searchParams }: PageProps<"/reserva/[codigo]">) {

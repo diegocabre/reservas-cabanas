@@ -4,7 +4,18 @@
 
 import { MARCA_REVISAR } from "@/lib/pagos";
 
-export type EstadoReserva = "pendiente_pago" | "confirmada" | "cancelada" | "completada";
+// Los estados de reserva viven en el enum de Prisma (estado_reserva); aquí, sus listas y nombres.
+export type { EstadoReserva } from "@/lib/generated/prisma/enums";
+import type { EstadoReserva } from "@/lib/generated/prisma/enums";
+
+/**
+ * Estados que retienen las fechas (los mismos de la restricción reserva_sin_traslape). Los que
+ * tienen plazo (expira_en) dejan de ocupar al vencer, aunque el cron todavía no los haya pasado.
+ */
+export const ESTADOS_QUE_OCUPAN = ["pendiente_pago", "pendiente_aprobacion", "aprobada_pendiente_pago", "confirmada"] as const satisfies readonly EstadoReserva[];
+export const ESTADOS_CON_PLAZO = ["pendiente_pago", "pendiente_aprobacion", "aprobada_pendiente_pago"] as const satisfies readonly EstadoReserva[];
+
+export const tienePlazo = (estado: string) => (ESTADOS_CON_PLAZO as readonly string[]).includes(estado);
 export type AccionEstado = "confirmar" | "cancelar";
 export type MedioPagoSaldo = "efectivo" | "transferencia" | "mercadopago";
 
@@ -15,6 +26,10 @@ export const NOMBRE_ESTADO: Record<EstadoReserva, string> = {
   confirmada: "Confirmada",
   cancelada: "Cancelada",
   completada: "Completada",
+  pendiente_aprobacion: "Solicitud pendiente",
+  aprobada_pendiente_pago: "Esperando pago",
+  rechazada: "Rechazada",
+  expirada: "Expirada",
 };
 
 export const NOMBRE_MEDIO: Record<MedioPagoSaldo | "flow", string> = {
@@ -30,11 +45,13 @@ export const NOMBRE_MEDIO: Record<MedioPagoSaldo | "flow", string> = {
  *   (el pago llegó después de vencer). Que las fechas sigan libres lo revisa la base al guardar.
  * - Cancelar: una pendiente o una confirmada. Libera las fechas (la restricción anti doble reserva
  *   solo considera pendiente_pago y confirmada).
- * Una completada ya ocurrió: no se confirma ni se cancela.
+ * - Aprobada por pagar: el dueño la confirma si le pagaron por otro medio, o la cancela.
+ * Una completada ya ocurrió: no se confirma ni se cancela. Las solicitudes pendientes se aprueban o
+ * rechazan (lib/aprobacion.ts), no se confirman directo.
  */
 export const TRANSICIONES: Record<AccionEstado, { desde: readonly EstadoReserva[]; hacia: EstadoReserva }> = {
-  confirmar: { desde: ["pendiente_pago", "cancelada"], hacia: "confirmada" },
-  cancelar: { desde: ["pendiente_pago", "confirmada"], hacia: "cancelada" },
+  confirmar: { desde: ["pendiente_pago", "cancelada", "aprobada_pendiente_pago", "expirada"], hacia: "confirmada" },
+  cancelar: { desde: ["pendiente_pago", "confirmada", "aprobada_pendiente_pago"], hacia: "cancelada" },
 };
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -43,10 +60,13 @@ const MOTIVO_TRANSICION: Record<AccionEstado, Partial<Record<EstadoReserva, stri
   confirmar: {
     confirmada: "La reserva ya está confirmada.",
     completada: "La reserva ya terminó: no se puede confirmar de nuevo.",
+    pendiente_aprobacion: "Primero aprueba o rechaza la solicitud.",
+    rechazada: "Rechazaste esta solicitud: no se puede confirmar.",
   },
   cancelar: {
     cancelada: "La reserva ya está cancelada.",
     completada: "La reserva ya terminó: no se puede cancelar.",
+    pendiente_aprobacion: "Es una solicitud: recházala en vez de cancelarla.",
   },
 };
 
@@ -68,7 +88,7 @@ export function validarMotivo(motivo: string): Resultado<{ motivo: string }> {
 }
 
 /** Estados en que se puede registrar un pago: no en una cancelada. */
-const ACEPTA_PAGOS: readonly EstadoReserva[] = ["pendiente_pago", "confirmada", "completada"];
+const ACEPTA_PAGOS: readonly EstadoReserva[] = ["pendiente_pago", "aprobada_pendiente_pago", "confirmada", "completada"];
 
 /**
  * Valida un pago que registra el dueño (saldo en efectivo, transferencia, etc.).
@@ -82,7 +102,7 @@ export function validarPagoSaldo(p: {
   fecha: string;
   hoy: string;
 }): Resultado {
-  if (!ACEPTA_PAGOS.includes(p.estado)) return { ok: false, error: "No se pueden registrar pagos en una reserva cancelada." };
+  if (!ACEPTA_PAGOS.includes(p.estado)) return { ok: false, error: `No se pueden registrar pagos en una reserva ${NOMBRE_ESTADO[p.estado].toLowerCase()}.` };
   if (!Number.isInteger(p.monto) || p.monto <= 0) return { ok: false, error: "El monto debe ser un número entero mayor que cero." };
   const pendiente = p.total - p.pagado;
   if (pendiente <= 0) return { ok: false, error: "Esta reserva ya está pagada completa." };

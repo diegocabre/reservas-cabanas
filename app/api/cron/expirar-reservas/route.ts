@@ -1,7 +1,9 @@
-import { expirarReservasVencidas } from "@/lib/reservas";
+import { procesarSolicitudes } from "@/lib/aprobacion";
 
 /**
- * Cron de Vercel (cada 30 minutos, plan Pro): cancela las reservas pendientes de pago que vencieron.
+ * Cron de Vercel (cada 30 minutos, plan Pro): cancela las reservas pendientes de pago que vencieron
+ * y, para las cabañas con aprobación manual, expira solicitudes sin respuesta o sin pago, avisa al
+ * huésped y al dueño, y envía los recordatorios (lib/aprobacion.ts). Idempotente.
  * Vercel envía "Authorization: Bearer <CRON_SECRET>" si la variable CRON_SECRET existe en el proyecto.
  *
  * Es solo orden de la base: las pendientes vencidas ya no bloquean fechas aunque el cron no corra
@@ -13,6 +15,5 @@ export async function GET(request: Request) {
     return Response.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const expiradas = await expirarReservasVencidas();
-  return Response.json({ expiradas });
+  return Response.json(await procesarSolicitudes());
 }

@@ -1,6 +1,7 @@
 // Bloqueos de fechas desde el panel. Igual que las acciones sobre reservas: una transacción con RLS
 // (comoAdmin), revalidación en el servidor y auditoría de quién bloqueó o liberó cada fecha.
 
+import { ESTADOS_QUE_OCUPAN } from "@/lib/estados-reserva";
 import { conflictos, describirRango, nombreMotivo, rangoDeBloqueo, type MotivoBloqueo } from "@/lib/bloqueos";
 import { reservaOcupa } from "@/lib/disponibilidad";
 import { cerrojoCabana } from "@/lib/errores-db";
@@ -55,7 +56,7 @@ export async function crearBloqueo(
       const enEsasFechas = { cabanaId: cabana.id, checkIn: { lt: d(rango.hasta) }, checkOut: { gt: d(rango.desde) } };
       const reservas = (
         await tx.reserva.findMany({
-          where: { ...enEsasFechas, estado: { in: ["pendiente_pago", "confirmada"] } },
+          where: { ...enEsasFechas, estado: { in: [...ESTADOS_QUE_OCUPAN] } },
           select: { codigo: true, huespedNombre: true, estado: true, expiraEn: true, checkIn: true, checkOut: true },
         })
       ).filter((x) => reservaOcupa(x, ahora)); // una pendiente vencida ya no ocupa

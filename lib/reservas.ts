@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { MINUTOS_PARA_PAGAR, nochesOcupadas, reservaOcupa, validarEstadia } from "@/lib/disponibilidad";
+import { MINUTOS_PARA_PAGAR, nochesOcupadas, plazoVencido, reservaOcupa, validarEstadia } from "@/lib/disponibilidad";
+import { ESTADOS_QUE_OCUPAN } from "@/lib/estados-reserva";
 import { generarCodigoReserva } from "@/lib/codigo";
 import { cerrojoCabana, codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { hoyEnChile, ocultarEmail } from "@/lib/formato";
@@ -43,10 +44,12 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
       minNoches: true,
       fotos: true,
       demo: true,
+      requiereAprobacion: true,
+      horasRespuestaAprobacion: true,
       propiedad: { select: { id: true, nombre: true, slug: true, abonoPct: true, abonoNoches: true, ...SELECT_PUBLICACION } },
       tarifas: { select: SELECT_TARIFA },
       reservas: {
-        where: { estado: { in: ["pendiente_pago", "confirmada"] }, checkOut: { gt: d(hoy) } },
+        where: { estado: { in: [...ESTADOS_QUE_OCUPAN] }, checkOut: { gt: d(hoy) } },
         select: { checkIn: true, checkOut: true, estado: true, expiraEn: true },
       },
       bloqueos: { where: { hasta: { gt: d(hoy) } }, select: { desde: true, hasta: true } },
@@ -86,26 +89,38 @@ export type DatosCalendario = NonNullable<Awaited<ReturnType<typeof obtenerDatos
 type ClienteDb = Pick<typeof db, "reserva">;
 
 /**
- * Pasa a `cancelada` las reservas `pendiente_pago` cuyo plazo para pagar venció.
+ * Libera las fechas de las reservas cuyo plazo venció:
+ * - `pendiente_pago` (no pagó en 30 minutos) → `cancelada`, como siempre.
+ * - Solicitudes `pendiente_aprobacion` (el dueño no respondió) y `aprobada_pendiente_pago` (no pagó el
+ *   link) → `expirada`. Los avisos de expiración los envía el cron (lib/aprobacion.ts), marcando
+ *   `expiracion_avisada_en`, así no importa quién la expiró.
  * La usan el cron (todas las cabañas) y crearReservaWeb (una cabaña, dentro de su transacción).
  * Devuelve cuántas reservas expiró.
  */
 export async function expirarReservasVencidas(cliente: ClienteDb = db, ahora = new Date(), cabanaId?: string) {
-  const { count } = await cliente.reserva.updateMany({
-    where: { estado: "pendiente_pago", expiraEn: { lt: ahora }, ...(cabanaId ? { cabanaId } : {}) },
+  const deLaCabana = cabanaId ? { cabanaId } : {};
+  const canceladas = await cliente.reserva.updateMany({
+    where: { estado: "pendiente_pago", expiraEn: { lt: ahora }, ...deLaCabana },
     data: { estado: "cancelada" },
   });
-  return count;
+  const expiradas = await cliente.reserva.updateMany({
+    where: { estado: { in: ["pendiente_aprobacion", "aprobada_pendiente_pago"] }, expiraEn: { lt: ahora }, ...deLaCabana },
+    data: { estado: "expirada" },
+  });
+  return canceladas.count + expiradas.count;
 }
 
-export type ResultadoReserva = { ok: true; codigo: string } | { ok: false; error: string };
+export type ResultadoReserva =
+  | { ok: true; codigo: string; estado: "pendiente_pago" | "pendiente_aprobacion" }
+  | { ok: false; error: string };
 
 const FECHAS_TOMADAS = "Alguien acaba de reservar esas fechas. Por favor elige otras.";
 
 class FechasNoDisponibles extends Error {}
 
 /**
- * Crea una reserva web en estado pendiente_pago. Recalcula precio, abono y disponibilidad
+ * Crea una reserva web: `pendiente_pago` (30 minutos para pagar), o `pendiente_aprobacion` si la
+ * cabaña pide aprobar las reservas (sin cobro; el dueño tiene `horas_respuesta_aprobacion`). Recalcula precio, abono y disponibilidad
  * en el servidor: no confía en nada de lo que calculó el navegador.
  */
 export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoReserva> {
@@ -123,6 +138,8 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
       capacidad: true,
       minNoches: true,
       demo: true,
+      requiereAprobacion: true,
+      horasRespuestaAprobacion: true,
       propiedad: { select: { id: true, abonoPct: true, abonoNoches: true, ...SELECT_PUBLICACION } },
       tarifas: { select: SELECT_TARIFA },
     },
@@ -155,7 +172,19 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
     where: { id: cabana.propiedad.id },
     select: { prefijoCodigo: true },
   });
-  const reserva = { cabanaId: cabana.id, datos, total, abono, ahora: new Date() };
+  const ahora = new Date();
+  // La configuración se lee de la cabaña al crear: cambiarla después no afecta reservas ya hechas.
+  const reserva = {
+    cabanaId: cabana.id,
+    datos,
+    total,
+    abono,
+    ahora,
+    estado: cabana.requiereAprobacion ? ("pendiente_aprobacion" as const) : ("pendiente_pago" as const),
+    expiraEn: new Date(
+      ahora.getTime() + (cabana.requiereAprobacion ? cabana.horasRespuestaAprobacion * 60 : MINUTOS_PARA_PAGAR) * 60_000,
+    ),
+  };
 
   // Código aleatorio. Si por azar ya existe (1 en ~887 millones), se reintenta con otro.
   for (let intento = 1; ; intento++) {
@@ -170,7 +199,15 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
 
 async function insertarReservaWeb(
   codigo: string,
-  { cabanaId, datos, total, abono, ahora }: { cabanaId: string; datos: DatosReserva; total: number; abono: number; ahora: Date },
+  { cabanaId, datos, total, abono, ahora, estado, expiraEn }: {
+    cabanaId: string;
+    datos: DatosReserva;
+    total: number;
+    abono: number;
+    ahora: Date;
+    estado: "pendiente_pago" | "pendiente_aprobacion";
+    expiraEn: Date;
+  },
 ): Promise<ResultadoReserva> {
   try {
     await db.$transaction(async (tx) => {
@@ -203,15 +240,15 @@ async function insertarReservaWeb(
           huespedRut: datos.rut,
           total,
           abono,
-          estado: "pendiente_pago",
+          estado,
           origen: "web",
-          expiraEn: new Date(ahora.getTime() + MINUTOS_PARA_PAGAR * 60_000),
+          expiraEn,
           // En modo prueba la reserva queda marcada, para poder identificarla y limpiarla después.
           notas: enModoPrueba() ? [MARCA_PRUEBA, datos.notas].filter(Boolean).join(" ") : datos.notas || null,
         },
       });
     });
-    return { ok: true, codigo };
+    return { ok: true, codigo, estado };
   } catch (e) {
     if (e instanceof FechasNoDisponibles || codigoPostgres(e) === TRASLAPE_RESERVA) {
       return { ok: false, error: FECHAS_TOMADAS };
@@ -290,6 +327,6 @@ export async function obtenerReservaPublica(codigo: string) {
     emailOculto: ocultarEmail(huespedEmail),
     prueba: notas?.startsWith(MARCA_PRUEBA) ?? false,
     pagoEnProceso: pagos.some((p) => p.estado === "pendiente"),
-    vencida: reserva.estado === "pendiente_pago" && !reservaOcupa(reserva, new Date()),
+    vencida: plazoVencido(reserva, new Date()),
   };
 }

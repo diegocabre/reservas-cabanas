@@ -71,3 +71,8 @@ export function formatearDiaLargo(iso: string): string {
     new Date(`${iso}T00:00:00Z`),
   );
 }
+
+/** Fecha y hora en Chile: 2026-10-16T18:30:00Z → "16 de octubre de 2026 a las 15:30" (plazos de solicitudes). */
+export function formatearFechaHora(fecha: Date): string {
+  return `${formatearFechaLarga(hoyEnChile(fecha))} a las ${formatearHora(fecha)}`;
+}

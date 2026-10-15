@@ -25,3 +25,20 @@ export function mensajeAlHuesped(r: { nombre: string; propiedad: string; codigo:
   const [primerNombre] = r.nombre.trim().split(/\s+/);
   return `Hola ${primerNombre}, te escribo de ${r.propiedad} por tu reserva ${r.codigo} con llegada el ${formatearFechaLarga(r.checkIn)}.`;
 }
+
+/** Mensaje del dueño al huésped cuando aprueba su solicitud: lleva el MISMO link de pago del correo. */
+export function mensajeAprobacion(r: {
+  nombre: string;
+  cabana: string;
+  checkIn: string;
+  checkOut: string;
+  linkPago: string;
+  limite: string; // "16 de octubre de 2026 a las 15:30"
+}) {
+  const [primerNombre] = r.nombre.trim().split(/\s+/);
+  return (
+    `Hola ${primerNombre}, te escribo de ${r.cabana}. ¡Aprobé tu solicitud de reserva del ` +
+    `${formatearFechaLarga(r.checkIn)} al ${formatearFechaLarga(r.checkOut)}! Para confirmarla, paga aquí: ` +
+    `${r.linkPago}. El link vence el ${r.limite}. ¡Te esperamos!`
+  );
+}

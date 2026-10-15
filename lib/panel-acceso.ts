@@ -43,12 +43,16 @@ export type TxPanel = Prisma.TransactionClient;
  * panel_admin (sin BYPASSRLS) y app.usuario_id = su usuario. `set local` dura solo la transacción,
  * así que la conexión vuelve limpia al pool.
  */
-export function comoAdmin<T>(admin: Pick<AdminSesion, "usuarioId">, fn: (tx: TxPanel) => Promise<T>): Promise<T> {
+export function comoAdmin<T>(
+  admin: Pick<AdminSesion, "usuarioId">,
+  fn: (tx: TxPanel) => Promise<T>,
+  opciones?: { timeout?: number },
+): Promise<T> {
   return db.$transaction(async (tx) => {
     await tx.$executeRawUnsafe("set local role panel_admin");
     await tx.$queryRaw`select set_config('app.usuario_id', ${admin.usuarioId}, true)`;
     return fn(tx);
-  });
+  }, opciones);
 }
 
 /** Ids de las propiedades del admin. Si se pide una, debe ser suya (si no, ninguna). */
