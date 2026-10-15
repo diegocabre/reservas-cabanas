@@ -18,6 +18,7 @@ import type { PropiedadAdmin } from "@/lib/panel-acceso";
 import { DIAS_RESUMEN } from "@/lib/panel-datos";
 import { MARCA_REVISAR } from "@/lib/pagos";
 import { FilaReserva, Lista, Seccion, TarjetaLlegada, TiraOcupacion, Vacio } from "./resumen";
+import { SeccionSolicitudes, type SolicitudResumen } from "./solicitudes";
 
 
 export interface PropsResumen {
@@ -33,10 +34,25 @@ export interface PropsResumen {
   cabanasActivas: number;
   propiedades: Pick<PropiedadAdmin, "id" | "nombre" | "slug">[];
   elegidaId: string;
+  /** Solicitudes por responder y aprobadas por pagar (cabañas con aprobación manual). */
+  solicitudes?: SolicitudResumen[];
+  cabanasSinAprobacionConSolicitudes?: string[];
 }
 
 /** Resumen del día de una propiedad, a partir de datos ya cargados y filtrados por el servidor. */
-export function VistaResumen({ hoy, propiedad, pendientes, modoPrueba, reservas, bloqueos, cabanasActivas, propiedades, elegidaId }: PropsResumen) {
+export function VistaResumen({
+  hoy,
+  propiedad,
+  pendientes,
+  modoPrueba,
+  reservas,
+  bloqueos,
+  cabanasActivas,
+  propiedades,
+  elegidaId,
+  solicitudes = [],
+  cabanasSinAprobacionConSolicitudes = [],
+}: PropsResumen) {
   const revisar = porRevisarPago(reservas);
   const llegaHoy = llegadas(reservas, hoy);
   const seVaHoy = salidas(reservas, hoy);
@@ -70,6 +86,12 @@ export function VistaResumen({ hoy, propiedad, pendientes, modoPrueba, reservas,
           </nav>
         )}
       </header>
+
+      <SeccionSolicitudes
+        solicitudes={solicitudes}
+        cabanasSinAprobacion={cabanasSinAprobacionConSolicitudes}
+        variasCabanas={cabanasActivas > 1}
+      />
 
       {revisar.length > 0 && (
         <section aria-labelledby="titulo-revisar" className="mt-6 rounded-2xl border border-fuego/40 bg-fuego/10 p-4">

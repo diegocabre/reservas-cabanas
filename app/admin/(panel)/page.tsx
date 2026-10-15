@@ -33,6 +33,8 @@ export default async function PaginaResumen({ searchParams }: PageProps<"/admin"
       cabanasActivas={datos.cabanasActivas}
       propiedades={admin.propiedades}
       elegidaId={elegida.id}
+      solicitudes={datos.solicitudes}
+      cabanasSinAprobacionConSolicitudes={datos.cabanasSinAprobacionConSolicitudes}
     />
   );
 }

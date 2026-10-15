@@ -21,6 +21,7 @@ export default async function LayoutPanel({ children }: LayoutProps<"/admin">) {
             <EnlacePanel href="/admin">Hoy</EnlacePanel>
             <EnlacePanel href="/admin/reservas">Reservas</EnlacePanel>
             <EnlacePanel href="/admin/bloqueos">Bloqueos</EnlacePanel>
+            <EnlacePanel href="/admin/cabanas">Cabañas</EnlacePanel>
             <EnlacePanel href="/admin/cobros">Cobros</EnlacePanel>
           </nav>
           <div className="flex min-w-0 items-center gap-2">

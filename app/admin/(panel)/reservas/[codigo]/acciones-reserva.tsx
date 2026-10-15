@@ -7,14 +7,14 @@ import { accionCancelar, accionConfirmar, accionMarcarRevisado, accionRegistrarP
 
 type Abierta = null | "confirmar" | "cancelar" | "pago" | "revisado";
 
-const botonPrincipal =
+export const botonPrincipal =
   "min-h-11 rounded-full px-5 font-bold text-nieve transition-[opacity,transform] hover:opacity-90 active:scale-[0.98] disabled:opacity-60";
-const botonSecundario =
+export const botonSecundario =
   "min-h-11 rounded-full border border-linea bg-nieve px-5 font-semibold text-tinta transition-colors hover:bg-papel-hondo";
-const claseInput =
+export const claseInput =
   "w-full rounded-xl border border-linea bg-papel px-3.5 py-3 text-base text-tinta outline-none transition-colors focus:border-lago focus:ring-2 focus:ring-lago/20";
 
-function MensajeError({ estado }: { estado: EstadoAccion }) {
+export function MensajeError({ estado }: { estado: EstadoAccion }) {
   if (!estado.error) return null;
   return (
     <p role="alert" className="rounded-xl bg-fuego/10 px-3.5 py-2.5 text-sm font-semibold text-fuego-hondo">
@@ -24,7 +24,7 @@ function MensajeError({ estado }: { estado: EstadoAccion }) {
 }
 
 /** Panel de confirmación que se abre bajo el botón de la acción. */
-function Confirmacion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+export function Confirmacion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div className="grid gap-3 rounded-2xl border border-linea bg-nieve p-4">
       <p className="font-bold">{titulo}</p>

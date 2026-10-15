@@ -2,18 +2,25 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { IconoFlecha, IconoWhatsapp } from "@/components/iconos";
 import { accionesDisponibles, NOMBRE_ESTADO, NOMBRE_MEDIO, tieneRevisarPago } from "@/lib/estados-reserva";
-import { formatearCLP, formatearFechaCorta, formatearFechaLarga, formatearHora, hoyEnChile } from "@/lib/formato";
+import { formatearCLP, formatearFechaCorta, formatearFechaHora, formatearFechaLarga, formatearHora, hoyEnChile } from "@/lib/formato";
+import { MARCA_PRUEBA } from "@/lib/reservas";
+import { botonWhatsappAprobacion } from "@/lib/solicitudes";
 import { MARCA_REVISAR } from "@/lib/pagos";
 import type { DetalleReserva } from "@/lib/panel-datos";
 import { enlaceWhatsapp, mensajeAlHuesped } from "@/lib/whatsapp";
 import { EtiquetaEstado } from "../../resumen";
 import { AccionesReserva } from "./acciones-reserva";
+import { AccionesPago, AccionesSolicitud } from "./acciones-solicitud";
 
 const HECHO = {
   confirmada: "Reserva confirmada. Le enviamos el email de confirmación al huésped.",
   cancelada: "Reserva cancelada. Las fechas quedaron libres.",
   pago: "Pago registrado.",
   revisado: "Pago marcado como revisado.",
+  aprobada: "Solicitud aprobada. Le enviamos al huésped el correo con el link de pago.",
+  rechazada: "Solicitud rechazada. Las fechas quedaron libres y le avisamos al huésped.",
+  link: "Generamos un nuevo link de pago y se lo enviamos al huésped.",
+  correo: "Le reenviamos al huésped el correo con el link de pago.",
 } as const;
 
 const ACCION = {
@@ -65,6 +72,20 @@ export function VistaDetalle({ r, hecho, hoy }: { r: DetalleReserva; hecho?: str
     mensajeAlHuesped({ nombre: r.huespedNombre, propiedad: r.cabana.propiedad.nombre, codigo: r.codigo, checkIn: r.checkIn }),
   );
   const mensajeHecho = hecho && Object.hasOwn(HECHO, hecho) ? HECHO[hecho as keyof typeof HECHO] : null;
+  const solicitudPendiente = r.estado === "pendiente_aprobacion" && !r.vencida;
+  // Esperando pago, o con el link vencido (aún sin marcar, o ya expirada) para poder renovarlo.
+  const conLinkDePago = r.estado === "aprobada_pendiente_pago" || (r.estado === "expirada" && r.aprobadaEn !== null);
+  const botonWhatsapp = botonWhatsappAprobacion({
+    huespedNombre: r.huespedNombre,
+    huespedTelefono: r.huespedTelefono,
+    cabana: r.cabana.nombre,
+    checkIn: r.checkIn,
+    checkOut: r.checkOut,
+    linkPago: r.linkPago,
+    linkPagoExpiraEn: r.estado === "aprobada_pendiente_pago" ? r.linkPagoExpiraEn : null,
+    ahora: new Date(),
+  });
+  const mensajeHuesped = r.notas?.replace(MARCA_PRUEBA, "").trim();
 
   return (
     <>
@@ -107,9 +128,55 @@ export function VistaDetalle({ r, hecho, hoy }: { r: DetalleReserva; hecho?: str
         </section>
       )}
 
-      <Bloque titulo="Acciones">
-        <AccionesReserva codigo={r.codigo} huesped={r.huespedNombre} saldo={r.saldo} hoy={hoy} puede={puede} />
-      </Bloque>
+      {r.avisoFallido && (
+        <section role="alert" className="mt-5 rounded-2xl border border-alerta/40 bg-alerta/10 p-4 text-sm">
+          <h2 className="font-bold text-alerta-hondo">Un aviso no se pudo enviar</h2>
+          <p className="mt-1 break-words">{r.avisoFallido}</p>
+          <p className="mt-2 text-tinta-suave">Avísale al huésped por WhatsApp o reenvía el correo.</p>
+        </section>
+      )}
+
+      {solicitudPendiente && (
+        <Bloque titulo="Solicitud de reserva">
+          <div className="grid gap-3 rounded-2xl border border-lago/30 bg-lago/5 p-4">
+            {r.expiraEn && (
+              <p className="text-sm">
+                Responde antes del <strong>{formatearFechaHora(r.expiraEn)}</strong>. Si no, la solicitud expira y las fechas
+                se liberan.
+              </p>
+            )}
+            <p className="rounded-xl bg-nieve px-3.5 py-3 text-sm whitespace-pre-line">
+              {mensajeHuesped ? `«${mensajeHuesped}»` : <span className="text-tinta-suave">El huésped no dejó mensaje.</span>}
+            </p>
+            <AccionesSolicitud codigo={r.codigo} huesped={r.huespedNombre} />
+          </div>
+        </Bloque>
+      )}
+
+      {conLinkDePago && (
+        <Bloque titulo={r.estado === "expirada" ? "Link de pago vencido" : "Esperando pago"}>
+          <div className="grid gap-3 rounded-2xl border border-madera/30 bg-madera-clara/10 p-4">
+            {r.estado === "aprobada_pendiente_pago" && r.linkPagoExpiraEn && (
+              <p className="text-sm">
+                Aprobada{r.aprobadaEn && ` el ${fechaHora(r.aprobadaEn)}`}. El link de pago vence el{" "}
+                <strong>{formatearFechaHora(r.linkPagoExpiraEn)}</strong>.
+              </p>
+            )}
+            <AccionesPago
+              codigo={r.codigo}
+              whatsapp={botonWhatsapp}
+              whatsappAbierto={r.whatsappAbiertoEn ? fechaHora(r.whatsappAbiertoEn) : null}
+              esperandoPago={r.estado === "aprobada_pendiente_pago"}
+            />
+          </div>
+        </Bloque>
+      )}
+
+      {!solicitudPendiente && (
+        <Bloque titulo="Acciones">
+          <AccionesReserva codigo={r.codigo} huesped={r.huespedNombre} saldo={r.saldo} hoy={hoy} puede={puede} />
+        </Bloque>
+      )}
 
       <Bloque titulo="Estadía">
         <dl className={caja}>

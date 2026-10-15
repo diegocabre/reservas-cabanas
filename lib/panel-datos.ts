@@ -2,6 +2,7 @@
 // defensas de lib/panel-acceso.ts: filtro por sus propiedades y RLS (comoAdmin).
 
 import { plazoVencido } from "@/lib/disponibilidad";
+import { MARCA_PRUEBA } from "@/lib/reservas";
 import { terminosBusqueda, type FiltrosReservas } from "@/lib/filtros-reservas";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { comoAdmin, deSusPropiedades, type AdminSesion } from "@/lib/panel-acceso";
@@ -71,7 +72,7 @@ export async function datosResumen(admin: AdminSesion, propiedadId: string, hoy:
   if (!admin.propiedades.some((p) => p.id === propiedadId)) return null;
 
   const filtro = deSusPropiedades(admin, propiedadId);
-  const { reservas, cabanasActivas, propiedad, bloqueos } = await comoAdmin(admin, async (tx) => ({
+  const { reservas, cabanasActivas, propiedad, bloqueos, solicitudes } = await comoAdmin(admin, async (tx) => ({
     reservas: await tx.reserva.findMany({
       where: {
         ...filtro,
@@ -95,13 +96,51 @@ export async function datosResumen(admin: AdminSesion, propiedadId: string, hoy:
       where: { id: propiedadId },
       select: { nombre: true, slug: true, ...SELECT_PUBLICACION },
     }),
+    // Solicitudes por responder y aprobadas que esperan el pago (cabañas con aprobación manual).
+    solicitudes: await tx.reserva.findMany({
+      where: { ...filtro, estado: { in: ["pendiente_aprobacion", "aprobada_pendiente_pago"] } },
+      select: {
+        codigo: true,
+        estado: true,
+        checkIn: true,
+        checkOut: true,
+        adultos: true,
+        ninos: true,
+        huespedNombre: true,
+        huespedTelefono: true,
+        notas: true,
+        expiraEn: true,
+        avisoFallido: true,
+        cabana: { select: { nombre: true, requiereAprobacion: true } },
+      },
+      orderBy: { expiraEn: "asc" },
+    }),
   }));
+  const ahora = new Date();
+  const vigentes = solicitudes.filter((s) => !plazoVencido(s, ahora));
 
   return {
     propiedad,
     cabanasActivas,
     reservas: reservas.map(aReservaPanel),
     bloqueos: bloqueos.map((b) => ({ id: b.id, cabana: b.cabana.nombre, desde: aFechaIso(b.desde), hasta: aFechaIso(b.hasta), motivo: b.motivo })),
+    solicitudes: vigentes.map((s) => ({
+      codigo: s.codigo,
+      estado: s.estado,
+      cabana: s.cabana.nombre,
+      huesped: s.huespedNombre,
+      telefono: s.huespedTelefono,
+      checkIn: aFechaIso(s.checkIn),
+      checkOut: aFechaIso(s.checkOut),
+      personas: s.adultos + s.ninos,
+      mensaje: s.notas?.replace(MARCA_PRUEBA, "").trim() || null,
+      expiraEn: s.expiraEn,
+      avisoFallido: s.avisoFallido,
+    })),
+    // Cabañas que ya no piden aprobación pero tienen solicitudes vigentes: esas siguen su flujo.
+    cabanasSinAprobacionConSolicitudes: [
+      ...new Set(vigentes.filter((s) => s.estado === "pendiente_aprobacion" && !s.cabana.requiereAprobacion).map((s) => s.cabana.nombre)),
+    ],
   };
 }
 
@@ -199,6 +238,11 @@ export async function detalleReserva(admin: AdminSesion, codigo: string) {
         huespedRut: true,
         expiraEn: true,
         createdAt: true,
+        aprobadaEn: true,
+        linkPago: true,
+        linkPagoExpiraEn: true,
+        whatsappAbiertoEn: true,
+        avisoFallido: true,
         cabana: { select: { nombre: true, propiedad: { select: { nombre: true, slug: true } } } },
         pagos: {
           select: { id: true, monto: true, estado: true, proveedor: true, refExterna: true, pagadoEn: true, createdAt: true },
@@ -228,3 +272,28 @@ export async function detalleReserva(admin: AdminSesion, codigo: string) {
 }
 
 export type DetalleReserva = NonNullable<Awaited<ReturnType<typeof detalleReserva>>>;
+
+/** Cabañas del admin con su configuración de aprobación manual y solicitudes vigentes (para /admin/cabanas). */
+export async function configuracionCabanas(admin: AdminSesion) {
+  const cabanas = await comoAdmin(admin, (tx) =>
+    tx.cabana.findMany({
+      where: { propiedadId: { in: admin.propiedades.map((p) => p.id) } },
+      select: {
+        id: true,
+        nombre: true,
+        activa: true,
+        requiereAprobacion: true,
+        horasRespuestaAprobacion: true,
+        horasParaPagar: true,
+        propiedad: { select: { id: true, nombre: true } },
+        _count: { select: { reservas: { where: { estado: "pendiente_aprobacion" } } } },
+      },
+      orderBy: [{ propiedad: { nombre: "asc" } }, { nombre: "asc" }],
+    }),
+  );
+  return cabanas.map(({ _count, ...c }) => ({
+    ...c,
+    solicitudesPendientes: _count.reservas,
+    esDueno: admin.propiedades.some((p) => p.id === c.propiedad.id && p.rol === "dueno"),
+  }));
+}
