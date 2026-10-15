@@ -20,6 +20,7 @@ import { enviarLinkAccesoHuesped } from "@/lib/notificaciones";
 import { ErrorAccion, ejecutar } from "@/lib/panel-acciones";
 import { comoAdmin, deSusPropiedades, idsPropiedades, type AdminSesion } from "@/lib/panel-acceso";
 import { aFechaIso } from "@/lib/precios";
+import { MARCA_PRUEBA } from "@/lib/reservas";
 import {
   CATEGORIAS,
   DIAS_EDITAR_RESPUESTA,
@@ -296,11 +297,17 @@ export const MAXIMO_RESENAS_PUBLICAS = 100;
 
 /**
  * Reseñas PUBLICADAS de una cabaña, sin datos personales (solo nombre de pila). Lo único que lee la
- * parte pública: ni retenidas ni ocultas. shortcut: tope de 100, paginar en la base si alguna cabaña lo pasa.
+ * parte pública: ni retenidas, ni ocultas, ni de reservas de prueba ([PRUEBA]: nunca llegan a la
+ * página ni al JSON-LD). shortcut: tope de 100, paginar en la base si alguna cabaña lo pasa.
  */
 export async function resenasPublicas(cabanaId: string): Promise<ResenaPublica[]> {
   const filas = await db.resenaCabana.findMany({
-    where: { cabanaId, estado: "publicada" },
+    where: {
+      cabanaId,
+      estado: "publicada",
+      // notas null cuenta como real (NOT LIKE con null no pasaría el filtro).
+      reserva: { OR: [{ notas: null }, { NOT: { notas: { startsWith: MARCA_PRUEBA } } }] },
+    },
     select: {
       id: true,
       nombrePublico: true,
@@ -346,7 +353,7 @@ export async function datosResenasPanel(admin: AdminSesion, hoy: string) {
         veracidad: true,
         calidadPrecio: true,
         cabana: { select: { nombre: true } },
-        reserva: { select: { codigo: true } },
+        reserva: { select: { codigo: true, notas: true } },
         respuesta: { select: { texto: true, createdAt: true } },
         reportes: { where: { usuarioId: admin.usuarioId }, select: { estado: true, motivo: true } },
       },
@@ -374,6 +381,7 @@ export async function datosResenasPanel(admin: AdminSesion, hoy: string) {
   return {
     resenas: resenas.map((r) => ({
       ...r,
+      prueba: r.reserva.notas?.startsWith(MARCA_PRUEBA) ?? false, // nunca sale en la página pública
       respuestaEditable: !r.respuesta || ahora - r.respuesta.createdAt.getTime() <= DIAS_EDITAR_RESPUESTA * DIA_MS,
     })),
     recientes: recientes.map((r) => ({ ...r, checkOut: aFechaIso(r.checkOut) })),

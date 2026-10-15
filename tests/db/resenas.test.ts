@@ -323,6 +323,18 @@ describe("página pública y JSON-LD", () => {
     expect(ld.aggregateRating.ratingValue).toBe(esperado);
   });
 
+  it("una reseña de una reserva de prueba ([PRUEBA]) nunca llega a la página pública", async () => {
+    const res = await reserva();
+    await db.reserva.update({ where: { id: res.id }, data: { notas: "[PRUEBA] Somos dos" } });
+    await r.enviarResenaCabana(await invitar(res), { notas, comentario: "Reseña de prueba, no debe verse" }, res.en(1));
+    await r.procesarResenas(res.en(14));
+    const resena = await db.resenaCabana.findUniqueOrThrow({ where: { reservaId: res.id } });
+    expect(resena.estado).toBe("publicada");
+    expect((await r.resenasPublicas(cabanaA)).some((x) => x.id === resena.id)).toBe(false);
+    const panel = await r.datosResenasPanel(adminA, "2027-12-31");
+    expect(panel.resenas.find((x) => x.id === resena.id)?.prueba).toBe(true);
+  });
+
   it("la respuesta del dueño se edita durante 14 días", async () => {
     const res = await reserva();
     await r.enviarResenaCabana(await invitar(res), { notas, comentario }, res.en(1));

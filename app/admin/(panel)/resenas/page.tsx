@@ -122,6 +122,11 @@ export default async function PaginaResenas({ searchParams }: PageProps<"/admin/
                   {r.estado === "oculta" && (
                     <p className="mt-2 rounded-xl bg-papel-hondo px-3 py-2 text-sm font-semibold">Oculta por moderación: no se muestra en la página.</p>
                   )}
+                  {r.prueba && r.estado !== "oculta" && (
+                    <p className="mt-2 rounded-xl bg-lago/10 px-3 py-2 text-sm font-semibold text-lago">
+                      Reserva de prueba: esta reseña nunca se muestra en la página pública.
+                    </p>
+                  )}
                   <p className="mt-2 whitespace-pre-line">{r.comentario}</p>
                   {r.respuesta && (
                     <div className="mt-3 rounded-xl bg-papel-hondo/60 px-3.5 py-2.5 text-sm">
