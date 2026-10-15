@@ -62,6 +62,8 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
   );
   const listo = cotizacion?.ok === true;
   const errores = erroresCliente ?? estado.errores;
+  // Cabañas con aprobación manual: se envía una solicitud y no se cobra hasta que el anfitrión apruebe.
+  const solicitud = datos.requiereAprobacion;
   const valor = (campo: string) => estado.valores?.[campo] ?? "";
 
   // Valida con el mismo esquema que el servidor antes de enviar.
@@ -186,7 +188,12 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
               <Campo etiqueta="Email" nombre="email" errores={errores} ayuda="Aquí te llegará la confirmación.">
                 <input id="email" name="email" type="email" autoComplete="email" defaultValue={valor("email")} className={claseInput} />
               </Campo>
-              <Campo etiqueta="Celular" nombre="telefono" errores={errores}>
+              <Campo
+                etiqueta={solicitud ? "Teléfono / WhatsApp" : "Celular"}
+                nombre="telefono"
+                errores={errores}
+                ayuda={solicitud ? "El anfitrión puede escribirte por WhatsApp para enviarte el link de pago." : undefined}
+              >
                 <input
                   id="telefono"
                   name="telefono"
@@ -197,7 +204,12 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
                   className={claseInput}
                 />
               </Campo>
-              <Campo etiqueta="Comentarios (opcional)" nombre="notas" errores={errores}>
+              <Campo
+                etiqueta={solicitud ? "Mensaje para el anfitrión (opcional)" : "Comentarios (opcional)"}
+                nombre="notas"
+                errores={errores}
+                ayuda={solicitud ? "Preséntate: quiénes viajan y a qué vienen." : undefined}
+              >
                 <textarea id="notas" name="notas" rows={3} defaultValue={valor("notas")} className={claseInput} />
               </Campo>
 
@@ -211,12 +223,22 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
                 type="submit"
                 className="mt-1 rounded-full bg-fuego px-6 py-4 text-lg font-bold text-nieve shadow-[0_6px_20px_-6px_var(--fuego)] transition-colors hover:bg-fuego-hondo disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {enviando ? "Reservando…" : modoPrueba ? "Reservar (prueba)" : "Reservar"}
+                {solicitud
+                  ? enviando
+                    ? "Enviando solicitud…"
+                    : `Solicitar reserva${modoPrueba ? " (prueba)" : ""}`
+                  : enviando
+                    ? "Reservando…"
+                    : modoPrueba
+                      ? "Reservar (prueba)"
+                      : "Reservar"}
               </button>
               <p className="-mt-2 text-center text-xs text-tinta-suave">
-                {modoPrueba
-                  ? "Es una reserva de prueba: no se cobra nada y las fechas se liberan en 30 minutos."
-                  : "Tus fechas quedan apartadas 30 minutos mientras pagas el abono."}
+                {solicitud
+                  ? "El anfitrión revisará tu solicitud. No se te cobra hasta que sea aprobada."
+                  : modoPrueba
+                    ? "Es una reserva de prueba: no se cobra nada y las fechas se liberan en 30 minutos."
+                    : "Tus fechas quedan apartadas 30 minutos mientras pagas el abono."}
               </p>
             </fieldset>
           </section>

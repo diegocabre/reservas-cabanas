@@ -289,6 +289,7 @@ export async function obtenerReservaPublica(codigo: string) {
       abono: true,
       estado: true,
       expiraEn: true,
+      aprobadaEn: true,
       notas: true,
       pagos: { select: { estado: true } },
       cabana: {
@@ -316,7 +317,8 @@ export async function obtenerReservaPublica(codigo: string) {
   });
   if (!reserva) return null;
 
-  const { huespedNombre, huespedEmail, checkIn, checkOut, notas, pagos, ...resto } = reserva;
+  // El link de pago no sale de aquí: el huésped paga con un botón (pagarAbono) que redirige a él.
+  const { huespedNombre, huespedEmail, checkIn, checkOut, notas, pagos, aprobadaEn, ...resto } = reserva;
   // Solo nombre e inicial del apellido: el código es fácil de adivinar.
   const [nombre, apellido] = huespedNombre.split(/\s+/);
   return {
@@ -327,6 +329,7 @@ export async function obtenerReservaPublica(codigo: string) {
     emailOculto: ocultarEmail(huespedEmail),
     prueba: notas?.startsWith(MARCA_PRUEBA) ?? false,
     pagoEnProceso: pagos.some((p) => p.estado === "pendiente"),
+    aprobada: aprobadaEn !== null,
     vencida: plazoVencido(reserva, new Date()),
   };
 }

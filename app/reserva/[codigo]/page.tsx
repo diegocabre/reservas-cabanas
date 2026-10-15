@@ -9,7 +9,7 @@ import { leerTema } from "@/lib/tema";
 import { enlaceWhatsapp, mensajeReserva } from "@/lib/whatsapp";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { enModoPrueba } from "@/lib/sitio";
-import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
+import { formatearCLP, formatearFechaHora, formatearFechaLarga, formatearHora } from "@/lib/formato";
 import { nochesEntre, saldoReserva } from "@/lib/precios";
 import { puedeCobrarEnLinea, registrarPagoMercadoPago } from "@/lib/mercadopago";
 import { obtenerReservaPublica } from "@/lib/reservas";
@@ -52,6 +52,11 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
   const { cabana } = reserva;
   const noches = nochesEntre(reserva.checkIn, reserva.checkOut).length;
   const estado = reserva.vencida ? { texto: "Vencida", clase: "bg-tinta/10 text-tinta-suave" } : ESTADOS[reserva.estado];
+  // Solicitudes (cabañas con aprobación manual).
+  const enRevision = reserva.estado === "pendiente_aprobacion" && !reserva.vencida;
+  const porPagar = reserva.estado === "aprobada_pendiente_pago" && !reserva.vencida;
+  const solicitudTerminada =
+    reserva.estado === "expirada" || (reserva.vencida && reserva.estado !== "pendiente_pago") || reserva.estado === "rechazada";
   const personas = reserva.adultos + reserva.ninos;
 
   const prueba = enModoPrueba() || reserva.prueba;
@@ -74,7 +79,11 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
               ? `¡Reserva confirmada, ${nombre}!`
               : reserva.estado === "pendiente_pago" && !reserva.vencida
                 ? `¡Listo, ${nombre}! Tus fechas están apartadas`
-                : `Reserva de ${reserva.huesped}`}
+                : enRevision
+                  ? `¡Solicitud enviada, ${nombre}!`
+                  : porPagar
+                    ? `¡${nombre}, el anfitrión aprobó tu solicitud!`
+                    : `Reserva de ${reserva.huesped}`}
           </h1>
           <span className={`mt-3 inline-block rounded-full px-3 py-1 text-sm font-bold ${estado.clase}`}>{estado.texto}</span>
         </div>
@@ -148,6 +157,73 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
           </div>
         )}
 
+        {enRevision && reserva.expiraEn && (
+          <div className="mt-6 rounded-3xl border border-lago/25 bg-lago/10 p-5 text-center">
+            <p className="font-semibold">El anfitrión revisará tu solicitud.</p>
+            <p className="mt-1 text-sm text-tinta-suave">
+              Te responderá a más tardar el <strong className="text-tinta">{formatearFechaHora(reserva.expiraEn)}</strong>. Mientras
+              tanto tus fechas quedan retenidas para ti y no se te cobra nada.
+            </p>
+            <p className="mt-3 rounded-2xl bg-nieve px-4 py-3 text-sm text-tinta-suave">
+              Te avisaremos a <strong className="text-tinta">{reserva.emailOculto}</strong>. Si la aprueba, recibirás el link para
+              pagar el abono de <strong className="text-tinta">{formatearCLP(reserva.abono)}</strong>.
+            </p>
+          </div>
+        )}
+
+        {porPagar && reserva.expiraEn && (
+          <div className="mt-6 rounded-3xl border border-madera/25 bg-madera-clara/15 p-5 text-center">
+            {reserva.pagoEnProceso ? (
+              <>
+                <p className="font-semibold">Tu pago está en proceso.</p>
+                <p className="mt-1 text-sm text-tinta-suave">
+                  Mercado Pago lo está revisando. Apenas se apruebe, tu reserva quedará confirmada en esta página.
+                </p>
+              </>
+            ) : cabana.demo ? (
+              <p className="font-semibold">Esta es una cabaña de demostración: no se cobra ningún pago.</p>
+            ) : (
+              <>
+                <p className="font-semibold">
+                  Paga el abono de <strong>{formatearCLP(reserva.abono)}</strong> antes del{" "}
+                  <strong>{formatearFechaHora(reserva.expiraEn)}</strong> para confirmar tu reserva.
+                </p>
+                <p className="mt-1 text-sm text-tinta-suave">Si no pagas a tiempo, las fechas se liberan para otros huéspedes.</p>
+                {(errorPago || pagoRechazado) && (
+                  <p role="alert" className="mt-4 rounded-2xl bg-alerta/10 px-4 py-3 text-sm font-semibold text-alerta-hondo">
+                    {pagoRechazado
+                      ? "El pago fue rechazado. Puedes intentarlo de nuevo con otro medio de pago."
+                      : "No pudimos abrir el pago. Intenta de nuevo en unos segundos."}
+                  </p>
+                )}
+                <form action={pagarAbono} className="mt-4">
+                  <input type="hidden" name="codigo" value={reserva.codigo} />
+                  <BotonPagar abono={formatearCLP(reserva.abono)} prueba={prueba} />
+                </form>
+              </>
+            )}
+          </div>
+        )}
+
+        {solicitudTerminada && (
+          <div className="mt-6 rounded-3xl border border-linea bg-nieve p-5 text-center">
+            <p className="font-semibold">
+              {reserva.estado === "rechazada"
+                ? "El anfitrión no pudo aceptar esta solicitud."
+                : reserva.aprobada
+                  ? "El plazo para pagar terminó y las fechas se liberaron."
+                  : "El anfitrión no alcanzó a responder y las fechas se liberaron."}
+            </p>
+            <p className="mt-1 text-sm text-tinta-suave">No se te cobró nada.</p>
+            <Link
+              href={`/reservar/${cabana.propiedad.slug}/${cabana.slug}`}
+              className="mt-4 inline-block rounded-full bg-fuego px-6 py-3 font-bold text-nieve"
+            >
+              Ver otras fechas
+            </Link>
+          </div>
+        )}
+
         {reserva.estado === "confirmada" && (
           <div className="mt-6 rounded-3xl border border-musgo/30 bg-musgo/10 p-5 text-center">
             <p className="font-semibold text-musgo">Recibimos el abono de {formatearCLP(reserva.abono)}.</p>
@@ -159,7 +235,7 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
           </div>
         )}
 
-        {reserva.vencida && (
+        {reserva.vencida && reserva.estado === "pendiente_pago" && (
           <div className="mt-6 rounded-3xl border border-linea bg-nieve p-5 text-center">
             <p className="font-semibold">El plazo para pagar el abono terminó y las fechas se liberaron.</p>
             <Link
@@ -213,7 +289,7 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
           </div>
         </section>
 
-        {whatsapp && reserva.estado !== "cancelada" && !reserva.vencida && (
+        {whatsapp && reserva.estado !== "cancelada" && !reserva.vencida && !solicitudTerminada && (
           <a
             href={whatsapp}
             target="_blank"
