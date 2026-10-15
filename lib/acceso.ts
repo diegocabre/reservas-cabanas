@@ -19,6 +19,7 @@ export function requiereSesion(ruta: string): boolean {
 export const MENSAJES_LOGIN = {
   link: "El link no es válido o ya venció. Pide uno nuevo.",
   "sin-acceso": "Sin acceso: ese email no administra ninguna propiedad. Si crees que es un error, escríbenos.",
+  suspendida: "Tu cuenta está suspendida. Escríbenos para reactivarla.",
 } as const;
 
 export type MotivoLogin = keyof typeof MENSAJES_LOGIN;

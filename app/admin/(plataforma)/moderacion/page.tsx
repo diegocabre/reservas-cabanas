@@ -3,7 +3,7 @@ import { requerirSuperadmin } from "@/lib/admin";
 import { formatearFechaHora } from "@/lib/formato";
 import { colaModeracion } from "@/lib/resenas";
 import { MOTIVOS_REPORTE } from "@/lib/resenas-reglas";
-import { botonPrincipal, botonSecundario } from "../reservas/[codigo]/acciones-reserva";
+import { botonPrincipal, botonSecundario } from "../../(panel)/reservas/[codigo]/acciones-reserva";
 import { accionAtenderSolicitud, accionResolverReporte } from "./acciones";
 
 export const metadata: Metadata = { title: "Moderación" };

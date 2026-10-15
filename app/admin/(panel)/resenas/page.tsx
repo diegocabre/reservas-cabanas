@@ -13,11 +13,11 @@ const caja = "rounded-2xl border border-linea bg-nieve";
 
 export default async function PaginaResenas({ searchParams }: PageProps<"/admin/resenas">) {
   const admin = await requerirAdmin();
-  if (!resenasCabanaActivas()) {
+  if (!admin.propiedades.some((p) => resenasCabanaActivas(p.resenas))) {
     return (
       <>
         <h1 className="font-display text-3xl font-semibold">Reseñas</h1>
-        <p className="mt-3 text-tinta-suave">Las reseñas todavía no están activadas en la plataforma.</p>
+        <p className="mt-3 text-tinta-suave">Las reseñas todavía no están activadas en tu alojamiento.</p>
       </>
     );
   }
@@ -57,7 +57,7 @@ export default async function PaginaResenas({ searchParams }: PageProps<"/admin/
                       {variasCabanas && `${r.cabana.nombre}, `}salió el {formatearFechaCorta(r.checkOut)}
                     </p>
                   </div>
-                  {resenasHuespedActivas() && (
+                  {admin.propiedades.some((p) => resenasHuespedActivas(p.resenas)) && (
                     <span className="shrink-0 text-right text-sm">
                       {r.resenaHuesped ? (
                         <span className="font-semibold text-musgo">Reseñaste al huésped</span>

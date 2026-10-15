@@ -12,6 +12,7 @@ export interface PropiedadAdmin {
   nombre: string;
   slug: string;
   rol: "dueno" | "staff";
+  resenas: "apagadas" | "cabana" | "completas"; // reseñas activas en la propiedad (las elige el superadmin)
 }
 
 /** Usuario con sesión iniciada que administra al menos una propiedad. */
@@ -24,8 +25,9 @@ export interface AdminSesion {
 /** Propiedades que administra un usuario de Supabase Auth, o null si no administra ninguna. */
 export async function cargarAdmin(usuarioId: string): Promise<AdminSesion | null> {
   const filas = await db.admin.findMany({
-    where: { usuarioId },
-    select: { email: true, rol: true, propiedad: { select: { id: true, nombre: true, slug: true } } },
+    // Las propiedades suspendidas (falta de pago) no cuentan: sus admins no entran al panel.
+    where: { usuarioId, propiedad: { suspendida: false } },
+    select: { email: true, rol: true, propiedad: { select: { id: true, nombre: true, slug: true, resenas: true } } },
     orderBy: { propiedad: { nombre: "asc" } },
   });
   if (filas.length === 0) return null;
@@ -34,6 +36,11 @@ export async function cargarAdmin(usuarioId: string): Promise<AdminSesion | null
     email: filas[0].email,
     propiedades: filas.map((f) => ({ ...f.propiedad, rol: f.rol })),
   };
+}
+
+/** ¿Administra alguna propiedad suspendida? (para explicar por qué no puede entrar). */
+export async function tienePropiedadSuspendida(usuarioId: string): Promise<boolean> {
+  return (await db.admin.count({ where: { usuarioId, propiedad: { suspendida: true } } })) > 0;
 }
 
 export type TxPanel = Prisma.TransactionClient;

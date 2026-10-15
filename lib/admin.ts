@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { RUTA_LOGIN, RUTA_SALIR } from "@/lib/acceso";
-import { cargarAdmin, type AdminSesion } from "@/lib/panel-acceso";
+import { cargarAdmin, tienePropiedadSuspendida, type AdminSesion } from "@/lib/panel-acceso";
 import { cargarSuperadmin, type Superadmin } from "@/lib/resenas";
 import { clienteSupabase } from "@/lib/supabase/servidor";
 
@@ -29,7 +29,12 @@ export const obtenerAdmin = cache(async (): Promise<AdminSesion | null> => {
 export async function requerirAdmin(): Promise<AdminSesion> {
   const admin = await obtenerAdmin();
   if (admin) return admin;
-  redirect((await usuarioDeLaSesion()) ? `${RUTA_SALIR}?motivo=sin-acceso` : RUTA_LOGIN);
+  const usuarioId = await usuarioDeLaSesion();
+  if (!usuarioId) redirect(RUTA_LOGIN);
+  // Superadmin sin propiedades activas: su lugar es /admin/plataforma.
+  if (await obtenerSuperadmin()) redirect("/admin/plataforma");
+  // Suspendida a mitad de sesión: la siguiente página o acción la saca con el motivo.
+  redirect(`${RUTA_SALIR}?motivo=${(await tienePropiedadSuspendida(usuarioId)) ? "suspendida" : "sin-acceso"}`);
 }
 
 /** Superadmin de la plataforma con sesión (tabla superadmin), o null. Una vez por request. */
@@ -38,9 +43,9 @@ export const obtenerSuperadmin = cache(async (): Promise<Superadmin | null> => {
   return usuarioId ? cargarSuperadmin(usuarioId) : null;
 });
 
-/** Superadmin de la sesión, o 404 (la cola de moderación no existe para nadie más). */
+/** Superadmin de la sesión, o 404 (Plataforma y moderación no existen para nadie más). No necesita propiedades. */
 export async function requerirSuperadmin(): Promise<Superadmin> {
-  await requerirAdmin();
+  if (!(await usuarioDeLaSesion())) redirect(RUTA_LOGIN);
   const sa = await obtenerSuperadmin();
   if (!sa) notFound();
   return sa;

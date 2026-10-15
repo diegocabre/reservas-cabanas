@@ -12,7 +12,6 @@ import { MEDIOS_PAGO_SALDO } from "@/lib/estados-reserva";
 import { hoyEnChile } from "@/lib/formato";
 import { cancelarReserva, confirmarReserva, marcarRevisado, registrarPago } from "@/lib/panel-acciones";
 import { escribirResenaHuesped } from "@/lib/resenas";
-import { resenasHuespedActivas } from "@/lib/resenas-reglas";
 
 // Server Actions del detalle de reserva. Cada una vuelve a verificar al admin (las acciones son
 // endpoints públicos: el layout no las protege), valida con Zod y delega en lib/panel-acciones.ts,
@@ -145,7 +144,6 @@ export async function accionReenviarCorreo(_previo: EstadoAccion, formData: Form
 
 export async function accionResenaHuesped(_previo: EstadoAccion, formData: FormData): Promise<EstadoAccion> {
   const admin = await requerirAdmin();
-  if (!resenasHuespedActivas()) return { error: "Las reseñas de huéspedes están desactivadas." };
   const cod = codigo.safeParse(formData.get("codigo"));
   if (!cod.success) return { error: "Reserva inválida." };
 

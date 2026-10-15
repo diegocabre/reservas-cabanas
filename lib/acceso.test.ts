@@ -26,6 +26,7 @@ describe("mensajes del login", () => {
   it("traduce los motivos conocidos e ignora el resto", () => {
     expect(mensajeLogin("link")).toMatch(/link/);
     expect(mensajeLogin("sin-acceso")).toMatch(/^Sin acceso/);
+    expect(mensajeLogin("suspendida")).toMatch(/suspendida/);
     expect(mensajeLogin("cualquiera")).toBeNull();
     expect(mensajeLogin("toString")).toBeNull();
     expect(mensajeLogin(undefined)).toBeNull();

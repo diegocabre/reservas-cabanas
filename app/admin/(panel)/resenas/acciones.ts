@@ -18,7 +18,7 @@ const esquemaRespuesta = z.object({
 
 export async function accionResponder(_previo: EstadoAccionResena, formData: FormData): Promise<EstadoAccionResena> {
   const admin = await requerirAdmin();
-  if (!resenasCabanaActivas()) return { error: "Las reseñas están desactivadas." };
+  if (!admin.propiedades.some((p) => resenasCabanaActivas(p.resenas))) return { error: "Las reseñas están desactivadas." };
   const datos = esquemaRespuesta.safeParse(Object.fromEntries(formData));
   if (!datos.success) return { error: datos.error.issues[0].message };
   const r = await responderResena(admin, datos.data.resenaId, datos.data.texto);

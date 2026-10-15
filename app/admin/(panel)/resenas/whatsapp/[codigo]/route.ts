@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { requerirAdmin } from "@/lib/admin";
 import { normalizarCodigo } from "@/lib/codigo";
 import { pedirResenaPorWhatsapp } from "@/lib/resenas";
-import { resenasCabanaActivas } from "@/lib/resenas-reglas";
 
 /**
  * "Pedir reseña por WhatsApp": arma el link wa.me con el MISMO link de la invitación por correo,
@@ -11,7 +10,6 @@ import { resenasCabanaActivas } from "@/lib/resenas-reglas";
  */
 export async function GET(_request: Request, { params }: RouteContext<"/admin/resenas/whatsapp/[codigo]">) {
   const admin = await requerirAdmin();
-  if (!resenasCabanaActivas()) redirect("/admin");
   const { codigo } = await params;
   const r = await pedirResenaPorWhatsapp(admin, normalizarCodigo(decodeURIComponent(codigo)));
   if (!r.ok) redirect("/admin/resenas?error=whatsapp");

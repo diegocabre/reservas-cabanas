@@ -27,7 +27,7 @@ export default async function PaginaResumen({ searchParams }: PageProps<"/admin"
   // Historial del huésped (reseñas privadas) en cada solicitud por responder.
   const solicitudes = await Promise.all(
     datos.solicitudes.map(async (s) => {
-      if (!resenasHuespedActivas() || s.estado !== "pendiente_aprobacion") return s;
+      if (!resenasHuespedActivas(elegida.resenas) || s.estado !== "pendiente_aprobacion") return s;
       const h = await historialHuesped(admin, { email: s.email, telefono: s.telefono }, hoy);
       return { ...s, historial: { ...h.resumen, otros: h.otros?.texto ?? null } };
     }),

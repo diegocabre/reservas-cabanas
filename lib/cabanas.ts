@@ -15,7 +15,7 @@ import { leerTema } from "@/lib/tema";
  */
 export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSlug: string) => {
   const cabana = await db.cabana.findFirst({
-    where: { slug: cabanaSlug, activa: true, propiedad: { slug: propiedadSlug } },
+    where: { slug: cabanaSlug, activa: true, propiedad: { slug: propiedadSlug, suspendida: false } },
     select: {
       id: true,
       nombre: true,
@@ -33,6 +33,7 @@ export const obtenerCabanaPublica = cache(async (propiedadSlug: string, cabanaSl
           nombre: true,
           slug: true,
           urlMapa: true,
+          resenas: true,
           ...SELECT_PUBLICACION,
           // Cuántas cabañas lista la propiedad (mismas reglas que su página), para el botón "volver".
           _count: { select: { cabanas: { where: { activa: true, ...(enModoPrueba() ? {} : { demo: false }) } } } },
@@ -69,8 +70,9 @@ export type CabanaPublica = NonNullable<Awaited<ReturnType<typeof obtenerCabanaP
  * Cada cabaña trae su precio "desde"; la propiedad, el menor entre sus cabañas.
  */
 export const obtenerPropiedadPublica = cache(async (propiedadSlug: string) => {
+  // Suspendida (falta de pago): no existe para el público.
   const propiedad = await db.propiedad.findUnique({
-    where: { slug: propiedadSlug },
+    where: { slug: propiedadSlug, suspendida: false },
     select: {
       nombre: true,
       slug: true,
@@ -114,6 +116,7 @@ export type PropiedadPublica = NonNullable<Awaited<ReturnType<typeof obtenerProp
  */
 export const obtenerDirectorio = cache(async () => {
   const propiedades = await db.propiedad.findMany({
+    where: { suspendida: false },
     select: {
       nombre: true,
       slug: true,

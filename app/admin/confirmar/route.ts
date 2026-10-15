@@ -2,7 +2,8 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
 import { urlLogin } from "@/lib/acceso";
-import { cargarAdmin } from "@/lib/panel-acceso";
+import { cargarAdmin, tienePropiedadSuspendida } from "@/lib/panel-acceso";
+import { cargarSuperadmin } from "@/lib/resenas";
 import { clienteSupabase } from "@/lib/supabase/servidor";
 
 /**
@@ -28,9 +29,9 @@ export async function GET(request: NextRequest) {
   }
   if (!usuarioId) redirect(urlLogin("link"));
 
-  if (!(await cargarAdmin(usuarioId))) {
-    await supabase.auth.signOut();
-    redirect(urlLogin("sin-acceso"));
-  }
-  redirect("/admin");
+  if (await cargarAdmin(usuarioId)) redirect("/admin");
+  // Superadmin de la plataforma sin propiedades activas: entra a /admin/plataforma.
+  if (await cargarSuperadmin(usuarioId)) redirect("/admin/plataforma");
+  await supabase.auth.signOut();
+  redirect(urlLogin((await tienePropiedadSuspendida(usuarioId)) ? "suspendida" : "sin-acceso"));
 }

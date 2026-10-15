@@ -34,7 +34,6 @@ import {
   debeDesbloquear,
   elegibilidad,
   esEtiqueta,
-  etapaResenas,
   firmarToken,
   formaDeToken,
   hashToken,
@@ -43,6 +42,7 @@ import {
   nombrePublico,
   normalizarEmail,
   normalizarTelefonoHuesped,
+  resenasCabanaActivas,
   resenasHuespedActivas,
   resumenHistorial,
   secretoResenas,
@@ -51,6 +51,8 @@ import {
   tocaRecordatorio,
   venceTokenResena,
   type Calificacion,
+  type Elegibilidad,
+  type EtapaResenas,
   type MotivoReporte,
   type Notas,
   type ResenaPublica,
@@ -111,6 +113,21 @@ export async function asegurarCiclo(cx: Conexion, reservaId: string, checkOut: s
 export const urlResenaDeCiclo = (c: Pick<Ciclo, "id" | "tokenVersion">) =>
   new URL(`/resena/${firmarToken(secretoResenas(), "resena", c.id, c.tokenVersion)}`, urlDelSitio()).toString();
 
+/**
+ * elegibilidad() más lo que depende de la propiedad: reseñas activas (de la cabaña, o del huésped si
+ * `huesped`) y no suspendida.
+ */
+function elegible(
+  r: { estado: string; checkOut: Date; cabana: { demo: boolean; propiedad: { resenas: EtapaResenas; suspendida: boolean } } },
+  hoy: string,
+  huesped = false,
+): Elegibilidad {
+  const p = r.cabana.propiedad;
+  const activas = huesped ? resenasHuespedActivas(p.resenas) : resenasCabanaActivas(p.resenas);
+  if (p.suspendida || !activas) return { ok: false, motivo: "Las reseñas no están disponibles en este alojamiento." };
+  return elegibilidad({ estado: r.estado, checkOut: aFechaIso(r.checkOut), demo: r.cabana.demo }, hoy);
+}
+
 // ---------------------------------------------------------------------------------------------
 // Doble ciego
 // ---------------------------------------------------------------------------------------------
@@ -159,7 +176,7 @@ const SELECT_CICLO_TOKEN = {
       checkOut: true,
       huespedNombre: true,
       cabanaId: true,
-      cabana: { select: { nombre: true, slug: true, demo: true, propiedad: { select: { nombre: true, slug: true } } } },
+      cabana: { select: { nombre: true, slug: true, demo: true, propiedad: { select: { nombre: true, slug: true, resenas: true, suspendida: true } } } },
       resenaCabana: {
         select: { estado: true, comentario: true, ediciones: true, limpieza: true, ubicacion: true, comunicacion: true, veracidad: true, calidadPrecio: true },
       },
@@ -191,7 +208,7 @@ export async function abrirInvitacion(token: string, ahora = new Date()): Promis
   const r = c.reserva;
   const cabana = r.cabana.nombre;
   if (c.tokenExpiraEn <= ahora) return { estado: "vencido", cabana, motivo: `El plazo para dejar la reseña terminó (${DIAS_PLAZO_RESENA} días desde tu salida).` };
-  const el = elegibilidad({ estado: r.estado, checkOut: aFechaIso(r.checkOut), demo: r.cabana.demo }, hoyEnChile(ahora));
+  const el = elegible(r, hoyEnChile(ahora));
   if (!el.ok) return { estado: "no_elegible", cabana, motivo: el.motivo };
   const previa = r.resenaCabana;
   if (previa && previa.estado !== "retenida") return { estado: "publicada", cabana, urlCabana: `/${r.cabana.propiedad.slug}/${r.cabana.slug}` };
@@ -252,7 +269,7 @@ export async function enviarResenaCabana(
       const c = await tx.cicloResena.findUniqueOrThrow({ where: { id: filas[0].id }, select: { ...SELECT_CICLO_TOKEN, tokenVersion: true } });
       reservaId = c.reservaId;
       if (c.tokenExpiraEn <= ahora) throw new ErrorAccion("El plazo para dejar la reseña terminó.");
-      const el = elegibilidad({ estado: c.reserva.estado, checkOut: aFechaIso(c.reserva.checkOut), demo: c.reserva.cabana.demo }, hoyEnChile(ahora));
+      const el = elegible(c.reserva, hoyEnChile(ahora));
       if (!el.ok) throw new ErrorAccion(el.motivo);
 
       const previa = c.reserva.resenaCabana;
@@ -338,9 +355,11 @@ export async function resenasPublicas(cabanaId: string): Promise<ResenaPublica[]
 /** Reseñas de las cabañas del admin (sin retenidas: RLS) y estadías recientes que pueden reseñarse. */
 export async function datosResenasPanel(admin: AdminSesion, hoy: string) {
   const ahora = Date.now();
+  // Solo las propiedades del admin con reseñas activas.
+  const ids = admin.propiedades.filter((p) => resenasCabanaActivas(p.resenas)).map((p) => p.id);
   const { resenas, recientes } = await comoAdmin(admin, async (tx) => ({
     resenas: await tx.resenaCabana.findMany({
-      where: { cabana: { propiedadId: { in: idsPropiedades(admin) } } },
+      where: { cabana: { propiedadId: { in: ids } } },
       select: {
         id: true,
         nombrePublico: true,
@@ -362,10 +381,9 @@ export async function datosResenasPanel(admin: AdminSesion, hoy: string) {
     }),
     recientes: await tx.reserva.findMany({
       where: {
-        ...deSusPropiedades(admin),
         estado: { in: [...ESTADOS_RESENABLES] },
         checkOut: { gte: fecha(sumarDiasIso(hoy, -DIAS_PLAZO_RESENA)), lte: fecha(hoy) },
-        cabana: { demo: false },
+        cabana: { propiedadId: { in: ids }, demo: false },
       },
       select: {
         codigo: true,
@@ -445,7 +463,7 @@ function reservaParaResena(admin: AdminSesion, codigo: string) {
         huespedNombre: true,
         huespedEmail: true,
         huespedTelefono: true,
-        cabana: { select: { nombre: true, demo: true, propiedadId: true } },
+        cabana: { select: { nombre: true, demo: true, propiedadId: true, propiedad: { select: { resenas: true, suspendida: true } } } },
       },
     }),
   );
@@ -458,7 +476,7 @@ function reservaParaResena(admin: AdminSesion, codigo: string) {
 export async function pedirResenaPorWhatsapp(admin: AdminSesion, codigo: string, ahora = new Date()): Promise<Resultado<{ url: string }>> {
   const r = await reservaParaResena(admin, codigo);
   if (!r) return { ok: false, error: "No encontramos esa reserva en tus propiedades." };
-  const el = elegibilidad({ estado: r.estado, checkOut: aFechaIso(r.checkOut), demo: r.cabana.demo }, hoyEnChile(ahora));
+  const el = elegible(r, hoyEnChile(ahora));
   if (!el.ok) return { ok: false, error: el.motivo };
   const ciclo = await asegurarCiclo(db, r.id, aFechaIso(r.checkOut));
   const url = enlaceWhatsapp(r.huespedTelefono, mensajePedirResena({ nombre: r.huespedNombre, cabana: r.cabana.nombre, url: urlResenaDeCiclo(ciclo) }));
@@ -495,7 +513,7 @@ export async function escribirResenaHuesped(
   if (!v.ok) return v;
   const r = await reservaParaResena(admin, codigo);
   if (!r) return { ok: false, error: "No encontramos esa reserva en tus propiedades." };
-  const el = elegibilidad({ estado: r.estado, checkOut: aFechaIso(r.checkOut), demo: r.cabana.demo }, hoyEnChile(ahora));
+  const el = elegible(r, hoyEnChile(ahora), true);
   if (!el.ok) return { ok: false, error: el.motivo };
 
   // El huésped y el ciclo los crea el servidor (el rol del panel no puede), ya verificada la reserva.
@@ -594,7 +612,7 @@ export async function resenasDeReserva(admin: AdminSesion, codigo: string, ahora
       select: {
         estado: true,
         checkOut: true,
-        cabana: { select: { demo: true } },
+        cabana: { select: { demo: true, propiedad: { select: { resenas: true, suspendida: true } } } },
         resenaHuesped: { select: { calificacion: true, etiquetas: true, comentario: true, estado: true } },
         resenaCabana: { select: { id: true, estado: true } }, // RLS: null mientras esté retenida
         cicloResena: { select: { invitacionEnviadaEn: true, whatsappAbiertoEn: true, desbloqueadoEn: true } },
@@ -602,7 +620,7 @@ export async function resenasDeReserva(admin: AdminSesion, codigo: string, ahora
     }),
   );
   if (!r) return null;
-  const el = elegibilidad({ estado: r.estado, checkOut: aFechaIso(r.checkOut), demo: r.cabana.demo }, hoyEnChile(ahora));
+  const el = elegible(r, hoyEnChile(ahora), true);
   return {
     elegible: el.ok,
     motivo: el.ok ? null : el.motivo,
@@ -773,14 +791,13 @@ export async function atenderSolicitudPrivacidad(sa: Superadmin, id: string, aho
 }
 
 // ---------------------------------------------------------------------------------------------
-// Cron (app/api/cron/resenas): invitaciones, recordatorios y desbloqueo. Idempotente: cada envío se
+// Cron (app/api/cron/resenas): invitaciones, recordatorios y desbloqueo, en las propiedades con
+// reseñas activas (las demás no reciben correos; el desbloqueo de lo ya escrito sigue en todas). Idempotente: cada envío se
 // "reserva" marcando su columna solo si estaba en null, así dos corridas no lo envían dos veces.
 // Los tokens no se borran al vencer: se rechazan por fecha (token_expira_en).
 // ---------------------------------------------------------------------------------------------
 
 export async function procesarResenas(ahora = new Date()) {
-  const etapa = etapaResenas();
-  if (etapa === "apagadas") return { etapa };
   const hoy = hoyEnChile(ahora);
   const marcar = async (id: string, campo: "invitacionEnviadaEn" | "recordatorioEn" | "recordatorioDuenoEn") =>
     (await db.cicloResena.updateMany({ where: { id, [campo]: null }, data: { [campo]: ahora } })).count === 1;
@@ -792,11 +809,13 @@ export async function procesarResenas(ahora = new Date()) {
     where: {
       estado: { in: [...ESTADOS_RESENABLES] },
       checkOut: { gte: fecha(sumarDiasIso(hoy, -DIAS_PLAZO_RESENA)), lt: fecha(hoy) },
-      cabana: { demo: false },
+      // Solo propiedades con reseñas activas y no suspendidas.
+      cabana: { demo: false, propiedad: { suspendida: false, resenas: { not: "apagadas" } } },
     },
     select: {
       id: true,
       codigo: true,
+      cabana: { select: { propiedad: { select: { resenas: true } } } },
       checkOut: true,
       huespedId: true,
       huespedEmail: true,
@@ -825,7 +844,7 @@ export async function procesarResenas(ahora = new Date()) {
 
     // Al dueño, al día siguiente del check-out (misma ventana que la invitación).
     if (
-      resenasHuespedActivas() &&
+      resenasHuespedActivas(r.cabana.propiedad.resenas) &&
       !r.resenaHuesped &&
       !ciclo.recordatorioDuenoEn &&
       tocaInvitar(checkOut, hoy) &&
@@ -841,5 +860,5 @@ export async function procesarResenas(ahora = new Date()) {
     if (await evaluarDesbloqueo(c.reservaId, ahora)) desbloqueos++;
   }
 
-  return { etapa, invitaciones, recordatorios, recordatoriosDueno, desbloqueos };
+  return { invitaciones, recordatorios, recordatoriosDueno, desbloqueos };
 }

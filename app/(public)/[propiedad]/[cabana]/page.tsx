@@ -75,7 +75,7 @@ export default async function PaginaCabana({ params }: Props) {
   const prueba = enModoPrueba();
   // Reseñas publicadas (se regeneran con la página, cada 5 minutos). JSON-LD solo si hay reseñas reales.
   // Apagadas: no se consulta nada (el deploy no depende de las tablas de reseñas).
-  const resenas = resenasCabanaActivas() ? await resenasPublicas(cabana.id) : [];
+  const resenas = resenasCabanaActivas(cabana.propiedad.resenas) ? await resenasPublicas(cabana.id) : [];
   const sitio = urlDelSitio();
   const portada = cabana.galeria[0];
   const jsonLd = jsonLdCabana(
