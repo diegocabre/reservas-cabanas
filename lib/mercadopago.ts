@@ -57,6 +57,7 @@ export async function iniciarPagoAbono(codigo: string): Promise<ResultadoInicioP
   // Las cabañas demo nunca cobran; las con datos PENDIENTE solo en modo prueba.
   const bloqueo = bloqueoCobro(reserva.cabana, enModoPrueba());
   if (bloqueo) return { ok: false, error: bloqueo };
+  if (reserva.estado === "rechazada") return { ok: false, error: "Esta solicitud no fue aprobada: no hay nada que pagar." };
   if (!reserva.expiraEn || !reservaOcupa(reserva, new Date())) {
     return { ok: false, error: "El plazo para pagar el abono terminó y las fechas se liberaron." };
   }
