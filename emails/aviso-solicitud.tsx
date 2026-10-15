@@ -15,6 +15,8 @@ export interface DatosEmailSolicitud {
   total: string; // "$225.000"
   abono: string;
   prueba: boolean;
+  etiqueta?: string; // encabezado: "Solicitud" por defecto; "Reserva" en los correos de reseñas
+  mostrarPrecio?: boolean; // false en los correos de reseñas
 }
 
 /** Correos al huésped de una solicitud de reserva (recibida, aprobada, rechazada, expirada, recordatorio). */
@@ -32,7 +34,7 @@ export function AvisoSolicitud(d: DatosEmailSolicitud) {
           )}
 
           <Text style={{ color: c.madera, fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", margin: 0 }}>
-            {d.propiedad} · Solicitud {d.codigo}
+            {d.propiedad} · {d.etiqueta ?? "Solicitud"} {d.codigo}
           </Text>
           <Heading as="h1" style={{ fontFamily: "Georgia, serif", fontSize: 26, lineHeight: "32px", margin: "6px 0 8px" }}>
             {d.titulo}
@@ -61,10 +63,14 @@ export function AvisoSolicitud(d: DatosEmailSolicitud) {
               {d.llegada} al {d.salida} · {d.noches} {d.noches === 1 ? "noche" : "noches"} · {d.personas}{" "}
               {d.personas === 1 ? "persona" : "personas"}
             </Text>
-            <Hr style={{ borderColor: c.papelHondo, margin: "12px 0" }} />
-            <Text style={{ fontSize: 15, margin: 0 }}>
-              Total: <strong>{d.total}</strong> · Abono para confirmar: <strong>{d.abono}</strong>
-            </Text>
+            {d.mostrarPrecio !== false && (
+              <>
+                <Hr style={{ borderColor: c.papelHondo, margin: "12px 0" }} />
+                <Text style={{ fontSize: 15, margin: 0 }}>
+                  Total: <strong>{d.total}</strong> · Abono para confirmar: <strong>{d.abono}</strong>
+                </Text>
+              </>
+            )}
           </Section>
 
           <Text style={{ color: c.tintaSuave, fontSize: 12, marginTop: 24 }}>
