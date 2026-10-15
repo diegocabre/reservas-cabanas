@@ -115,10 +115,11 @@ model Propiedad {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  admins     Admin[]
-  cabanas    Cabana[]
-  cuentaPago CuentaMercadoPago?
-  auditoria  Auditoria[]
+  admins         Admin[]
+  cabanas        Cabana[]
+  cuentaPago     CuentaMercadoPago?
+  auditoria      Auditoria[]
+  resenasHuesped ResenaHuesped[]
 
   @@map("propiedad")
 }
@@ -141,24 +142,24 @@ model Admin {
 }
 
 model Cabana {
-  id          String   @id @default(uuid()) @db.Uuid
-  propiedadId String   @map("propiedad_id") @db.Uuid
-  nombre      String
-  slug        String
-  capacidad   Int
-  dormitorios Int
-  descripcion String   @default("")
-  servicios   String[] @default([])
-  fotos       String[] @default([])
-  minNoches   Int      @default(1) @map("min_noches") // estadía mínima de la cabaña
-  activa      Boolean  @default(true)
-  demo        Boolean  @default(false) // cabaña de demostración (datos de ejemplo, no es un alojamiento real)
+  id                       String   @id @default(uuid()) @db.Uuid
+  propiedadId              String   @map("propiedad_id") @db.Uuid
+  nombre                   String
+  slug                     String
+  capacidad                Int
+  dormitorios              Int
+  descripcion              String   @default("")
+  servicios                String[] @default([])
+  fotos                    String[] @default([])
+  minNoches                Int      @default(1) @map("min_noches") // estadía mínima de la cabaña
+  activa                   Boolean  @default(true)
+  demo                     Boolean  @default(false) // cabaña de demostración (datos de ejemplo, no es un alojamiento real)
   // Aprobación manual: las reservas web nacen como solicitud (pendiente_aprobacion) y se cobran al aprobarlas.
-  requiereAprobacion       Boolean @default(false) @map("requiere_aprobacion")
-  horasRespuestaAprobacion Int     @default(24) @map("horas_respuesta_aprobacion") // plazo del dueño para responder
-  horasParaPagar           Int     @default(24) @map("horas_para_pagar") // vigencia del link de pago al aprobar
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  requiereAprobacion       Boolean  @default(false) @map("requiere_aprobacion")
+  horasRespuestaAprobacion Int      @default(24) @map("horas_respuesta_aprobacion") // plazo del dueño para responder
+  horasParaPagar           Int      @default(24) @map("horas_para_pagar") // vigencia del link de pago al aprobar
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   propiedad           Propiedad           @relation(fields: [propiedadId], references: [id])
   temporadas          Temporada[] // sin uso desde el piloto (precios fijos por Tarifa); queda para la etapa 2
@@ -167,6 +168,7 @@ model Cabana {
   bloqueos            Bloqueo[]
   auditoria           Auditoria[]
   calendariosExternos CalendarioExterno[]
+  resenas             ResenaCabana[]
 
   @@unique([propiedadId, slug])
   @@map("cabana")
@@ -205,41 +207,48 @@ model Tarifa {
 }
 
 model Reserva {
-  id              String        @id @default(uuid()) @db.Uuid
-  codigo          String        @unique // prefijo de la propiedad + 6 caracteres aleatorios, ej. LL-7K3QX9 (los antiguos: LL-0001)
-  cabanaId        String        @map("cabana_id") @db.Uuid
-  checkIn         DateTime      @map("check_in") @db.Date // inclusivo
-  checkOut        DateTime      @map("check_out") @db.Date // EXCLUSIVO: ese día queda libre para otra llegada
-  adultos         Int
-  ninos           Int           @default(0)
-  huespedNombre   String        @map("huesped_nombre")
-  huespedEmail    String        @map("huesped_email")
-  huespedTelefono String        @map("huesped_telefono")
-  huespedRut      String?       @map("huesped_rut") // obligatorio en reservas web; puede faltar en las de Airbnb/Booking/manuales
-  total           Int
-  abono           Int
-  estado          EstadoReserva @default(pendiente_pago)
-  origen          OrigenReserva @default(web)
-  expiraEn        DateTime?     @map("expira_en") @db.Timestamptz(3) // plazo para pagar, o para que el dueño responda una solicitud
-  notas           String?
+  id                    String        @id @default(uuid()) @db.Uuid
+  codigo                String        @unique // prefijo de la propiedad + 6 caracteres aleatorios, ej. LL-7K3QX9 (los antiguos: LL-0001)
+  cabanaId              String        @map("cabana_id") @db.Uuid
+  checkIn               DateTime      @map("check_in") @db.Date // inclusivo
+  checkOut              DateTime      @map("check_out") @db.Date // EXCLUSIVO: ese día queda libre para otra llegada
+  adultos               Int
+  ninos                 Int           @default(0)
+  huespedNombre         String        @map("huesped_nombre")
+  huespedEmail          String        @map("huesped_email")
+  huespedTelefono       String        @map("huesped_telefono")
+  huespedRut            String?       @map("huesped_rut") // obligatorio en reservas web; puede faltar en las de Airbnb/Booking/manuales
+  total                 Int
+  abono                 Int
+  estado                EstadoReserva @default(pendiente_pago)
+  origen                OrigenReserva @default(web)
+  expiraEn              DateTime?     @map("expira_en") @db.Timestamptz(3) // plazo para pagar, o para que el dueño responda una solicitud
+  notas                 String?
   // Solicitudes (cabana.requiere_aprobacion). Ver lib/aprobacion.ts.
-  aprobadaEn            DateTime? @map("aprobada_en") @db.Timestamptz(3)
-  linkPago              String?   @map("link_pago") // link de Mercado Pago creado al aprobar; solo lo ven el huésped y el dueño
-  linkPagoExpiraEn      DateTime? @map("link_pago_expira_en") @db.Timestamptz(3)
-  whatsappAbiertoEn     DateTime? @map("whatsapp_abierto_en") @db.Timestamptz(3) // el dueño abrió WhatsApp (no implica entregado)
-  recordatorioDuenoEn   DateTime? @map("recordatorio_dueno_en") @db.Timestamptz(3)
-  recordatorioHuespedEn DateTime? @map("recordatorio_huesped_en") @db.Timestamptz(3)
-  expiracionAvisadaEn   DateTime? @map("expiracion_avisada_en") @db.Timestamptz(3)
-  avisoFallido          String?   @map("aviso_fallido") // último aviso que no se pudo enviar, para mostrarlo en el panel
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  aprobadaEn            DateTime?     @map("aprobada_en") @db.Timestamptz(3)
+  linkPago              String?       @map("link_pago") // link de Mercado Pago creado al aprobar; solo lo ven el huésped y el dueño
+  linkPagoExpiraEn      DateTime?     @map("link_pago_expira_en") @db.Timestamptz(3)
+  whatsappAbiertoEn     DateTime?     @map("whatsapp_abierto_en") @db.Timestamptz(3) // el dueño abrió WhatsApp (no implica entregado)
+  recordatorioDuenoEn   DateTime?     @map("recordatorio_dueno_en") @db.Timestamptz(3)
+  recordatorioHuespedEn DateTime?     @map("recordatorio_huesped_en") @db.Timestamptz(3)
+  expiracionAvisadaEn   DateTime?     @map("expiracion_avisada_en") @db.Timestamptz(3)
+  avisoFallido          String?       @map("aviso_fallido") // último aviso que no se pudo enviar, para mostrarlo en el panel
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  // Reseñas (lib/resenas.ts). Opcional: lo llenan el script de poblado y el cron de reseñas.
+  huespedId             String?       @map("huesped_id") @db.Uuid
 
-  cabana    Cabana      @relation(fields: [cabanaId], references: [id])
-  pagos     Pago[]
-  auditoria Auditoria[]
+  cabana        Cabana         @relation(fields: [cabanaId], references: [id])
+  huesped       Huesped?       @relation(fields: [huespedId], references: [id], onDelete: SetNull)
+  pagos         Pago[]
+  auditoria     Auditoria[]
+  cicloResena   CicloResena?
+  resenaCabana  ResenaCabana?
+  resenaHuesped ResenaHuesped?
 
   @@index([cabanaId, checkIn])
   @@index([estado, expiraEn])
+  @@index([huespedId])
   @@map("reserva")
 }
 
@@ -341,4 +350,232 @@ model CalendarioExterno {
 
   @@unique([cabanaId, plataforma])
   @@map("calendario_externo")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reseñas (docs/plan-resenas.md). Doble ciego: ninguna reseña de una reserva se muestra a la otra
+// parte (ni al público) hasta que ambas escribieron la suya o pasaron 14 días desde el check-out.
+// ---------------------------------------------------------------------------------------------
+
+enum EstadoResena {
+  retenida // esperando el doble ciego: solo la ve su autor
+  publicada
+  oculta // la ocultó el superadmin por un reporte: se conserva pero no se muestra
+
+  @@map("estado_resena")
+}
+
+enum CalificacionHuesped {
+  recomendado
+  con_reservas
+  no_recomendado
+
+  @@map("calificacion_huesped")
+}
+
+enum MotivoReporte {
+  insultos
+  datos_personales
+  no_corresponde
+
+  @@map("motivo_reporte")
+}
+
+enum EstadoModeracion {
+  pendiente
+  aceptado // reporte: la reseña se ocultó. Solicitud de privacidad: atendida
+  descartado
+
+  @@map("estado_moderacion")
+}
+
+enum TipoSolicitudPrivacidad {
+  rectificacion
+  eliminacion
+
+  @@map("tipo_solicitud_privacidad")
+}
+
+// Huésped identificado por email normalizado (minúsculas, sin espacios), para que su historial lo
+// siga entre reservas. El teléfono (+569XXXXXXXX) es secundario: dos huéspedes pueden compartirlo.
+model Huesped {
+  id               String    @id @default(uuid()) @db.Uuid
+  email            String    @unique // normalizado (lib/huespedes.ts)
+  telefono         String? // normalizado, +569XXXXXXXX
+  nombrePila       String    @map("nombre_pila")
+  // Link de acceso a sus datos (Ley 21.719): HMAC con versión, guardado como hash, vence en 24 h.
+  accesoVersion    Int       @default(0) @map("acceso_version")
+  accesoHash       String?   @unique @map("acceso_hash")
+  accesoExpiraEn   DateTime? @map("acceso_expira_en") @db.Timestamptz(3)
+  accesoPedidoEn   DateTime? @map("acceso_pedido_en") @db.Timestamptz(3) // límite: un link cada 10 minutos
+  creadoPorPoblado Boolean   @default(false) @map("creado_por_poblado") // para revertir el script de poblado
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  reservas    Reserva[]
+  resenas     ResenaHuesped[]
+  solicitudes SolicitudPrivacidad[]
+
+  @@index([telefono])
+  @@map("huesped")
+}
+
+// Ciclo de reseñas de una reserva elegible (confirmada con check-out pasado): invitación al
+// huésped, recordatorios y el desbloqueo del doble ciego. Lo crea el cron de reseñas.
+model CicloResena {
+  id                  String    @id @default(uuid()) @db.Uuid
+  reservaId           String    @unique @map("reserva_id") @db.Uuid
+  // Token de la invitación: HMAC(RESENAS_SECRETO, id:versión). Se guarda solo su hash; usarlo sube
+  // la versión, así cada link sirve una sola vez.
+  tokenVersion        Int       @default(0) @map("token_version")
+  tokenHash           String    @unique @map("token_hash")
+  tokenExpiraEn       DateTime  @map("token_expira_en") @db.Timestamptz(3) // check-out + 30 días
+  invitacionEnviadaEn DateTime? @map("invitacion_enviada_en") @db.Timestamptz(3)
+  recordatorioEn      DateTime? @map("recordatorio_en") @db.Timestamptz(3)
+  whatsappAbiertoEn   DateTime? @map("whatsapp_abierto_en") @db.Timestamptz(3) // el dueño abrió WhatsApp (no implica entregado)
+  recordatorioDuenoEn DateTime? @map("recordatorio_dueno_en") @db.Timestamptz(3)
+  desbloqueadoEn      DateTime? @map("desbloqueado_en") @db.Timestamptz(3)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  reserva Reserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+
+  @@index([desbloqueadoEn])
+  @@map("ciclo_resena")
+}
+
+// Reseña de la cabaña escrita por el huésped. Pública cuando está "publicada". Sin email, teléfono
+// ni apellido: solo el nombre de pila (nombre_publico).
+model ResenaCabana {
+  id            String       @id @default(uuid()) @db.Uuid
+  reservaId     String       @unique @map("reserva_id") @db.Uuid
+  cabanaId      String       @map("cabana_id") @db.Uuid
+  nombrePublico String       @map("nombre_publico")
+  limpieza      Int
+  ubicacion     Int
+  comunicacion  Int
+  veracidad     Int
+  calidadPrecio Int          @map("calidad_precio")
+  comentario    String
+  estado        EstadoResena @default(retenida)
+  ediciones     Int          @default(0)
+  publicadaEn   DateTime?    @map("publicada_en") @db.Timestamptz(3)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  reserva   Reserva          @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+  cabana    Cabana           @relation(fields: [cabanaId], references: [id], onDelete: Cascade)
+  respuesta RespuestaResena?
+  reportes  ReporteResena[]
+
+  @@index([cabanaId, estado, publicadaEn])
+  @@map("resena_cabana")
+}
+
+// Respuesta pública del dueño a una reseña (una por reseña, editable por un plazo).
+model RespuestaResena {
+  id             String   @id @default(uuid()) @db.Uuid
+  resenaId       String   @unique @map("resena_id") @db.Uuid
+  texto          String
+  autorUsuarioId String   @map("autor_usuario_id") @db.Uuid
+  autorEmail     String   @map("autor_email")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  resena ResenaCabana @relation(fields: [resenaId], references: [id], onDelete: Cascade)
+
+  @@map("respuesta_resena")
+}
+
+// Reporte de una reseña por el dueño: llega a la cola del superadmin, que puede ocultarla.
+model ReporteResena {
+  id          String           @id @default(uuid()) @db.Uuid
+  resenaId    String           @map("resena_id") @db.Uuid
+  motivo      MotivoReporte
+  detalle     String?
+  estado      EstadoModeracion @default(pendiente)
+  usuarioId   String           @map("usuario_id") @db.Uuid
+  email       String
+  resueltoPor String?          @map("resuelto_por") // email del superadmin
+  resueltoEn  DateTime?        @map("resuelto_en") @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  resena ResenaCabana @relation(fields: [resenaId], references: [id], onDelete: Cascade)
+
+  @@index([estado, createdAt])
+  @@index([resenaId])
+  @@map("reporte_resena")
+}
+
+// Reseña PRIVADA del huésped escrita por el dueño. La ven solo los admins de la propiedad autora
+// (y el huésped, por su link de acceso, después del desbloqueo). Ver la vista reputacion_compartida.
+model ResenaHuesped {
+  id             String              @id @default(uuid()) @db.Uuid
+  reservaId      String              @unique @map("reserva_id") @db.Uuid
+  propiedadId    String              @map("propiedad_id") @db.Uuid
+  huespedId      String              @map("huesped_id") @db.Uuid
+  autorUsuarioId String              @map("autor_usuario_id") @db.Uuid
+  autorEmail     String              @map("autor_email")
+  calificacion   CalificacionHuesped
+  etiquetas      String[]            @default([])
+  comentario     String?
+  estado         EstadoResena        @default(retenida)
+  publicadaEn    DateTime?           @map("publicada_en") @db.Timestamptz(3)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  reserva   Reserva         @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+  propiedad Propiedad       @relation(fields: [propiedadId], references: [id], onDelete: Cascade)
+  huesped   Huesped         @relation(fields: [huespedId], references: [id], onDelete: Cascade)
+  replica   ReplicaHuesped?
+
+  @@index([huespedId, estado])
+  @@index([propiedadId])
+  @@map("resena_huesped")
+}
+
+// Réplica del huésped a una reseña sobre él (se muestra junto a la reseña a los dueños autorizados).
+model ReplicaHuesped {
+  id        String   @id @default(uuid()) @db.Uuid
+  resenaId  String   @unique @map("resena_id") @db.Uuid
+  texto     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  resena ResenaHuesped @relation(fields: [resenaId], references: [id], onDelete: Cascade)
+
+  @@map("replica_huesped")
+}
+
+// Solicitud de rectificación o eliminación del huésped: llega a la cola de moderación. Nada se
+// borra automáticamente.
+model SolicitudPrivacidad {
+  id          String                  @id @default(uuid()) @db.Uuid
+  huespedId   String                  @map("huesped_id") @db.Uuid
+  tipo        TipoSolicitudPrivacidad
+  mensaje     String
+  estado      EstadoModeracion        @default(pendiente)
+  resueltoPor String?                 @map("resuelto_por")
+  resueltoEn  DateTime?               @map("resuelto_en") @db.Timestamptz(3)
+  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  huesped Huesped @relation(fields: [huespedId], references: [id], onDelete: Cascade)
+
+  @@index([estado, createdAt])
+  @@map("solicitud_privacidad")
+}
+
+// Configuración de la plataforma (una sola fila, id = 1).
+model ConfiguracionPlataforma {
+  id                  Int     @id @default(1)
+  compartirReputacion Boolean @default(false) @map("compartir_reputacion") // reputación del huésped entre dueños: APAGADA
+
+  @@map("configuracion_plataforma")
+}
+
+// Administradores de la plataforma (Soluciones DyS): moderan reportes y solicitudes de privacidad.
+model Superadmin {
+  usuarioId String   @id @map("usuario_id") @db.Uuid
+  email     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("superadmin")
 }
