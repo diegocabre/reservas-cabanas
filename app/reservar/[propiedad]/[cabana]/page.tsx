@@ -53,7 +53,7 @@ export default async function PaginaReservar({ params }: PageProps<"/reservar/[p
         <>
           {enModoPrueba() && <AvisoPrueba className="mb-6" />}
           <FormularioReserva datos={datos} modoPrueba={enModoPrueba()} />
-          {resenasCabanaActivas() && <AvisoPrivacidadReserva className="mx-auto mt-6 max-w-2xl" />}
+          {resenasCabanaActivas(datos.propiedad.resenas) && <AvisoPrivacidadReserva className="mx-auto mt-6 max-w-2xl" />}
         </>
       )}
     </main>

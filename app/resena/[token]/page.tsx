@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AvisoPrivacidadResena } from "@/components/aviso-privacidad";
 import { PerfilVolcan } from "@/components/perfil-volcan";
 import { abrirInvitacion } from "@/lib/resenas";
-import { DIAS_DOBLE_CIEGO, resenasCabanaActivas } from "@/lib/resenas-reglas";
+import { DIAS_DOBLE_CIEGO } from "@/lib/resenas-reglas";
 import { FormularioResena } from "./formulario";
 
 // El link es personal: no se indexa ni se filtra por el Referer al salir de la página.
@@ -32,14 +32,6 @@ const caja = "vetas mt-8 rounded-3xl border border-linea bg-nieve p-5";
 export default async function PaginaResena({ params, searchParams }: PageProps<"/resena/[token]">) {
   const { token } = await params;
   const aviso = await searchParams;
-  if (!resenasCabanaActivas()) {
-    return (
-      <Marco titulo="Reseñas no disponibles">
-        <p className="mt-3 text-center text-tinta-suave">Por ahora no estamos recibiendo reseñas. Gracias por tu interés.</p>
-      </Marco>
-    );
-  }
-
   const inv = await abrirInvitacion(decodeURIComponent(token));
 
   if (inv.estado === "invalido") {

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   debeDesbloquear,
   elegibilidad,
-  etapaResenas,
   firmarToken,
   formaDeToken,
   hashToken,
@@ -16,6 +15,8 @@ import {
   normalizarTelefonoHuesped,
   notaGeneral,
   resumenHistorial,
+  resenasCabanaActivas,
+  resenasHuespedActivas,
   resumirResenas,
   tocaInvitar,
   tocaRecordatorio,
@@ -23,12 +24,10 @@ import {
   type ResenaPublica,
 } from "./resenas-reglas";
 
-describe("etapaResenas", () => {
-  it("apagadas por defecto y con valores desconocidos", () => {
-    expect(etapaResenas({})).toBe("apagadas");
-    expect(etapaResenas({ RESENAS: "si" })).toBe("apagadas");
-    expect(etapaResenas({ RESENAS: " Cabana " })).toBe("cabana");
-    expect(etapaResenas({ RESENAS: "completas" })).toBe("completas");
+describe("etapas por propiedad", () => {
+  it("cabana activa las de la cabaña; completas, además las del huésped", () => {
+    expect([resenasCabanaActivas("apagadas"), resenasCabanaActivas("cabana"), resenasCabanaActivas("completas"), resenasCabanaActivas(null)]).toEqual([false, true, true, false]);
+    expect([resenasHuespedActivas("cabana"), resenasHuespedActivas("completas")]).toEqual([false, true]);
   });
 });
 

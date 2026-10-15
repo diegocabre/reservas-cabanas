@@ -24,7 +24,8 @@ export default async function PaginaDetalleReserva({ params, searchParams }: Pag
 
   // Reseña privada del huésped e historial con este dueño (solo con las reseñas del huésped activas).
   const hoy = hoyEnChile();
-  const resenas = resenasHuespedActivas()
+  const etapa = admin.propiedades.find((p) => p.slug === reserva.cabana.propiedad.slug)?.resenas;
+  const resenas = resenasHuespedActivas(etapa)
     ? {
         estado: await resenasDeReserva(admin, reserva.codigo),
         historial: await historialHuesped(admin, { email: reserva.huespedEmail, telefono: reserva.huespedTelefono }, hoy),

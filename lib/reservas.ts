@@ -36,7 +36,7 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
   const hoy = hoyEnChile();
   const ahora = new Date();
   const cabana = await db.cabana.findFirst({
-    where: { slug: cabanaSlug, activa: true, propiedad: { slug: propiedadSlug } },
+    where: { slug: cabanaSlug, activa: true, propiedad: { slug: propiedadSlug, suspendida: false } },
     select: {
       nombre: true,
       slug: true,
@@ -46,7 +46,7 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
       demo: true,
       requiereAprobacion: true,
       horasRespuestaAprobacion: true,
-      propiedad: { select: { id: true, nombre: true, slug: true, abonoPct: true, abonoNoches: true, ...SELECT_PUBLICACION } },
+      propiedad: { select: { id: true, nombre: true, slug: true, abonoPct: true, abonoNoches: true, resenas: true, ...SELECT_PUBLICACION } },
       tarifas: { select: SELECT_TARIFA },
       reservas: {
         where: { estado: { in: [...ESTADOS_QUE_OCUPAN] }, checkOut: { gt: d(hoy) } },
@@ -71,6 +71,7 @@ export async function obtenerDatosReserva(propiedadSlug: string, cabanaSlug: str
       slug: propiedad.slug,
       abonoPct: propiedad.abonoPct,
       abonoNoches: propiedad.abonoNoches,
+      resenas: propiedad.resenas, // para el aviso de privacidad
     },
     hoy,
     ultimoDia: sumarMeses(hoy, MESES_RESERVABLES),
@@ -131,7 +132,8 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
   }
 
   const cabana = await db.cabana.findFirst({
-    where: { slug: datos.cabana, activa: true, propiedad: { slug: datos.propiedad } },
+    // Una propiedad suspendida no recibe reservas (el servidor la rechaza aunque alguien tenga el link).
+    where: { slug: datos.cabana, activa: true, propiedad: { slug: datos.propiedad, suspendida: false } },
     select: {
       id: true,
       nombre: true,

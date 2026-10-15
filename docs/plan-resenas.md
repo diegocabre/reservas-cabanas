@@ -2,14 +2,14 @@
 
 Rama `feat/resenas`, creada desde `feat/aprobacion-reservas`. **Nada se aplicó a producción**: la
 migración, su reversa, el script de poblado y los tests de base corrieron en un Postgres 17 local
-(Docker), igual que la aprobación. Todo queda **apagado por defecto** (`RESENAS` vacío).
+(Docker), igual que la aprobación. Todo queda **apagado por defecto**: las reseñas se activan **por propiedad** en `/admin/plataforma` (superadmin).
 
 ## Qué hace
 
 | Etapa | Qué incluye | Se activa con |
 |---|---|---|
-| 1. Reseñas de la cabaña (públicas) | Invitación por correo al día siguiente del check-out, recordatorio a los 7 días, botón "Pedir reseña por WhatsApp" en el panel, formulario con link único (5 categorías de 1 a 5 estrellas + comentario), respuesta pública del dueño, reportes, cola de moderación del superadmin, sección pública con promedio, desglose y JSON-LD | `RESENAS=cabana` |
-| 2. Reseñas del huésped (privadas) | Identidad del huésped, reseña privada del dueño (recomendado / con reservas / no recomendado + etiquetas + comentario), recordatorio al dueño, historial en la tarjeta de cada solicitud y en el detalle, "Mis datos" (ver, replicar, pedir rectificación o eliminación), aviso de privacidad | `RESENAS=completas` |
+| 1. Reseñas de la cabaña (públicas) | Invitación por correo al día siguiente del check-out, recordatorio a los 7 días, botón "Pedir reseña por WhatsApp" en el panel, formulario con link único (5 categorías de 1 a 5 estrellas + comentario), respuesta pública del dueño, reportes, cola de moderación del superadmin, sección pública con promedio, desglose y JSON-LD | Plataforma → Reseñas: "De la cabaña" |
+| 2. Reseñas del huésped (privadas) | Identidad del huésped, reseña privada del dueño (recomendado / con reservas / no recomendado + etiquetas + comentario), recordatorio al dueño, historial en la tarjeta de cada solicitud y en el detalle, "Mis datos" (ver, replicar, pedir rectificación o eliminación), aviso de privacidad | Plataforma → Reseñas: "De la cabaña y del huésped" |
 | 3. Doble ciego | Nada se muestra a la otra parte (ni al público) hasta que están las dos reseñas o pasan 14 días desde el check-out. Antes del desbloqueo el autor puede editar; después, no | Siempre que las reseñas estén encendidas (sin él nada se publicaría) |
 
 Elegibilidad (ambos sentidos): reserva `confirmada` (o `completada`), check-out ya llegado, hasta 30
@@ -34,7 +34,7 @@ RLS (`panel_admin`):
 
 ## Archivos
 
-- `lib/resenas-reglas.ts` (puro, con tests): elegibilidad, plazos, doble ciego, tokens HMAC, saneamiento de texto, nombre de pila, normalización de email/teléfono, promedios, JSON-LD, historial, mensaje de WhatsApp, interruptor `RESENAS`.
+- `lib/resenas-reglas.ts` (puro, con tests): elegibilidad, plazos, doble ciego, tokens HMAC, saneamiento de texto, nombre de pila, normalización de email/teléfono, promedios, JSON-LD, historial, mensaje de WhatsApp, etapas por propiedad.
 - `lib/resenas.ts`: huésped y ciclo, `evaluarDesbloqueo` (con `FOR UPDATE`), envío del huésped por token, respuestas, reportes, WhatsApp, reseña del huésped, historial, "Mis datos", moderación y `procesarResenas` (cron).
 - `lib/notificaciones.ts` + `emails/aviso-solicitud.tsx`: plantillas `invitacion_resena`, `recordatorio_resena`, `resena_huesped_pendiente` (dueño) y `enviarLinkAccesoHuesped`, por la misma capa `notificarHuesped(canal, plantilla, datos)`. WhatsApp automático sigue como etapa futura.
 - `app/api/cron/resenas` + `vercel.json` (diario, 13:00 UTC ≈ 10:00 Chile).
@@ -51,7 +51,7 @@ RLS (`panel_admin`):
 ## Decisiones tomadas
 
 1. **Rama:** `feat/aprobacion-reservas` existía (igual a `main` en ese momento); `feat/resenas` sale de ella, así que la conexión con las solicitudes no necesita comprobación aparte.
-2. **Activación por etapas con una variable** (`RESENAS` = vacío / `cabana` / `completas`), apagada por defecto, para desplegar sin cambiar nada visible. El doble ciego corre en ambos modos.
+2. **Activación por propiedad** (`propiedad.resenas` = `apagadas` / `cabana` / `completas`, migración `20261016140000_plataforma_propiedad`), la cambia solo el superadmin en `/admin/plataforma`, sin redeploy. Reemplazó a la variable `RESENAS` del primer deploy. El doble ciego corre en ambos modos.
 3. **Token "firmado":** HMAC-SHA256 con `RESENAS_SECRETO` sobre `id:versión`; se guarda solo su hash. Así el servidor puede volver a armar el link vigente (recordatorio, WhatsApp) sin guardarlo. **Un solo uso** = cada link sirve para un envío: al enviar sube la versión y se entrega un link nuevo, que solo sirve para editar mientras la reseña siga retenida (máximo 5 ediciones). El del correo deja de servir; la página lo explica.
 4. **Rate limiting** sin infraestructura nueva: el token de un solo uso + tope de ediciones limitan los envíos de reseñas; "Mis datos" permite un link cada 10 minutos por huésped y responde igual exista o no el email.
 5. **Invitación automática solo la primera semana** después del check-out: al activar, no les llega un correo a huéspedes de hace un mes (el dueño igual puede pedirla por WhatsApp dentro de los 30 días). El aviso al dueño sigue la misma ventana.
@@ -67,14 +67,13 @@ RLS (`panel_admin`):
 
 ## Variables de entorno nuevas
 
-- `RESENAS` — vacío (apagado), `cabana` o `completas`.
 - `RESENAS_SECRETO` — 32+ caracteres aleatorios. Obligatoria al activar (sin ella el cron falla).
 - El cron nuevo usa el `CRON_SECRET` existente.
 
 ## Probar en local / preview (sin tocar la reserva real del piloto)
 
 1. Postgres local: `docker run -d --name resenas-pg -e POSTGRES_PASSWORD=local -p 54329:5432 postgres:17`.
-2. `.env.development.local` (ignorado por git, tiene prioridad sobre `.env`) con `DATABASE_URL` y `DIRECT_URL` locales, `RESENAS=completas`, `RESENAS_SECRETO=...`, `RESEND_API_KEY=` vacío.
+2. `.env.development.local` (ignorado por git, tiene prioridad sobre `.env`) con `DATABASE_URL` y `DIRECT_URL` locales, `RESENAS_SECRETO=...` (y `update propiedad set resenas = 'completas'` en la base local), `RESEND_API_KEY=` vacío.
 3. `npx prisma migrate deploy`, `npx prisma db seed`, `npm run huespedes:poblar` (con esas variables exportadas en la terminal).
 4. `npm test` y `npm run test:db` con `DATABASE_URL` local exportada (¡nunca con la de `.env`!).
 5. En una rama de Supabase / preview de Vercel: misma secuencia con su URL; crear reservas de prueba propias con check-out pasado. No usar la reserva real del piloto.
@@ -84,10 +83,10 @@ RLS (`panel_admin`):
 1. Respaldo de la base.
 2. Migración `20261016120000_resenas` (`npx prisma migrate deploy` con `DIRECT_URL` de producción). Reversa: `prisma/reversas/resenas.down.sql`.
 3. Poblado: `npm run huespedes:poblar -- --permitir-supabase` (reversible con `--revertir`).
-4. Deploy del código con `RESENAS` vacío: no cambia nada visible. Configurar `RESENAS_SECRETO` en Vercel.
+4. Deploy del código: no cambia nada visible (todas las propiedades quedan con reseñas apagadas). Configurar `RESENAS_SECRETO` en Vercel.
 5. Superadmin: `insert into superadmin (usuario_id, email) values ('<id de auth.users>', '<email>');`
-6. Etapa 1: `RESENAS=cabana` y redeploy.
-7. Etapas 2 y 3: `RESENAS=completas` y redeploy (el doble ciego ya corre desde la etapa 1).
+6. Etapa 1: en `/admin/plataforma`, Reseñas → "De la cabaña" en la propiedad (sin redeploy).
+7. Etapas 2 y 3: Reseñas → "De la cabaña y del huésped" (el doble ciego ya corre desde la etapa 1).
 
 ## Pendiente
 

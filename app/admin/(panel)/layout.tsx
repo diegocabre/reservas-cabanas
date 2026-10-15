@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function LayoutPanel({ children }: LayoutProps<"/admin">) {
   // Protege las páginas del panel. Las Server Actions llaman a requerirAdmin() por su cuenta.
   const admin = await requerirAdmin();
-  const superadmin = resenasCabanaActivas() ? await obtenerSuperadmin() : null;
+  const superadmin = await obtenerSuperadmin();
 
   return (
     <div className="flex flex-1 flex-col">
@@ -25,8 +25,8 @@ export default async function LayoutPanel({ children }: LayoutProps<"/admin">) {
             <EnlacePanel href="/admin/bloqueos">Bloqueos</EnlacePanel>
             <EnlacePanel href="/admin/cabanas">Cabañas</EnlacePanel>
             <EnlacePanel href="/admin/cobros">Cobros</EnlacePanel>
-            {resenasCabanaActivas() && <EnlacePanel href="/admin/resenas">Reseñas</EnlacePanel>}
-            {superadmin && <EnlacePanel href="/admin/moderacion">Moderación</EnlacePanel>}
+            {admin.propiedades.some((p) => resenasCabanaActivas(p.resenas)) && <EnlacePanel href="/admin/resenas">Reseñas</EnlacePanel>}
+            {superadmin && <EnlacePanel href="/admin/plataforma">Plataforma</EnlacePanel>}
           </nav>
           <div className="flex min-w-0 items-center gap-2">
             <span className="hidden min-w-0 truncate text-sm text-tinta-suave sm:block">{admin.email}</span>

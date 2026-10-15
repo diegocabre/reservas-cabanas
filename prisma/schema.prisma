@@ -98,22 +98,28 @@ enum Plataforma {
 }
 
 model Propiedad {
-  id                   String   @id @default(uuid()) @db.Uuid
+  id                   String       @id @default(uuid()) @db.Uuid
   nombre               String
-  slug                 String   @unique
+  slug                 String       @unique
   ubicacion            String? // texto libre, ej. "Puerto Varas · Lago Llanquihue"
-  urlMapa              String?  @map("url_mapa") // link de Google Maps a la propiedad
-  prefijoCodigo        String   @unique @default("RES") @map("prefijo_codigo") // códigos de reserva "LL-7K3QX9"
-  ultimoCorrelativo    Int      @default(0) @map("ultimo_correlativo") // en desuso: los códigos ya no son correlativos
+  urlMapa              String?      @map("url_mapa") // link de Google Maps a la propiedad
+  prefijoCodigo        String       @unique @default("RES") @map("prefijo_codigo") // códigos de reserva "LL-7K3QX9"
+  ultimoCorrelativo    Int          @default(0) @map("ultimo_correlativo") // en desuso: los códigos ya no son correlativos
   whatsapp             String
   email                String
-  abonoPct             Int      @default(50) @map("abono_pct") // abono = % del total (si abono_noches es null)
-  abonoNoches          Int?     @map("abono_noches") // abono = N noches de la tarifa de la estadía (piloto: 1), con tope en el total
-  politicaCancelacion  String?  @map("politica_cancelacion")
-  instruccionesLlegada String?  @map("instrucciones_llegada")
+  abonoPct             Int          @default(50) @map("abono_pct") // abono = % del total (si abono_noches es null)
+  abonoNoches          Int?         @map("abono_noches") // abono = N noches de la tarifa de la estadía (piloto: 1), con tope en el total
+  politicaCancelacion  String?      @map("politica_cancelacion")
+  instruccionesLlegada String?      @map("instrucciones_llegada")
   tema                 Json? // colores propios de la propiedad (lib/tema.ts); null = paleta base
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  // Plataforma (/admin/plataforma, solo superadmin). Suspendida (por falta de pago): no aparece en el
+  // sitio, no recibe reservas y sus admins no entran al panel.
+  suspendida           Boolean      @default(false)
+  suspendidaEn         DateTime?    @map("suspendida_en") @db.Timestamptz(3)
+  suspendidaPor        String?      @map("suspendida_por") // email del superadmin
+  resenas              EtapaResenas @default(apagadas) // reseñas activas en esta propiedad (docs/plan-resenas.md)
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   admins         Admin[]
   cabanas        Cabana[]
@@ -356,6 +362,15 @@ model CalendarioExterno {
 // Reseñas (docs/plan-resenas.md). Doble ciego: ninguna reseña de una reserva se muestra a la otra
 // parte (ni al público) hasta que ambas escribieron la suya o pasaron 14 días desde el check-out.
 // ---------------------------------------------------------------------------------------------
+
+// Reseñas activas por propiedad: la elige el superadmin en /admin/plataforma.
+enum EtapaResenas {
+  apagadas
+  cabana // reseñas de la cabaña (públicas)
+  completas // además las reseñas privadas del huésped
+
+  @@map("etapa_resenas")
+}
 
 enum EstadoResena {
   retenida // esperando el doble ciego: solo la ve su autor

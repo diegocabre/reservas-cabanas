@@ -23,23 +23,23 @@ export const HORAS_LINK_ACCESO = 24;
 export const MINUTOS_ENTRE_LINKS = 10;
 
 // ---------------------------------------------------------------------------------------------
-// Activación por etapas (variable RESENAS, apagada por defecto)
+// Activación por propiedad (propiedad.resenas, la elige el superadmin en /admin/plataforma)
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * cabana: reseñas de la cabaña (invitaciones, formulario, respuestas, moderación).
+ * completas: además las del huésped (privadas). El doble ciego corre en ambas.
+ */
 export type EtapaResenas = "apagadas" | "cabana" | "completas";
 
-/**
- * RESENAS=cabana: reseñas de la cabaña (invitaciones, formulario, respuestas, moderación).
- * RESENAS=completas: además las del huésped (privadas). Cualquier otro valor: apagadas.
- * El doble ciego (etapa 3) corre en ambas: sin él ninguna reseña se publicaría.
- */
-export function etapaResenas(env: Record<string, string | undefined> = process.env): EtapaResenas {
-  const v = env.RESENAS?.trim().toLowerCase();
-  return v === "cabana" || v === "completas" ? v : "apagadas";
-}
+export const ETAPAS_RESENAS: Record<EtapaResenas, string> = {
+  apagadas: "Apagadas",
+  cabana: "De la cabaña (públicas)",
+  completas: "De la cabaña y del huésped",
+};
 
-export const resenasCabanaActivas = (env: Record<string, string | undefined> = process.env) => etapaResenas(env) !== "apagadas";
-export const resenasHuespedActivas = (env: Record<string, string | undefined> = process.env) => etapaResenas(env) === "completas";
+export const resenasCabanaActivas = (etapa: EtapaResenas | null | undefined) => etapa === "cabana" || etapa === "completas";
+export const resenasHuespedActivas = (etapa: EtapaResenas | null | undefined) => etapa === "completas";
 
 // ---------------------------------------------------------------------------------------------
 // Fechas y elegibilidad

@@ -6,7 +6,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.RESENAS = "completas";
 process.env.RESENAS_SECRETO = "secreto-de-prueba-para-resenas-0123456789";
 process.env.RESEND_API_KEY = "";
 
@@ -73,6 +72,7 @@ beforeAll(async () => {
         prefijoCodigo: `R${letra}${sufijo}`.toUpperCase(),
         whatsapp: "+56900000000",
         email: "dueno@example.com",
+        resenas: "completas",
       },
     });
     const c = await db.cabana.create({ data: { propiedadId: p.id, nombre: `Cabaña ${letra}`, slug: "cabana", capacidad: 4, dormitorios: 2 } });
@@ -350,8 +350,7 @@ describe("página pública y JSON-LD", () => {
 describe("cron de reseñas", () => {
   it("es idempotente: dos corridas no duplican invitaciones, recordatorios ni reseñas", async () => {
     const res = await reserva();
-    const primera = await r.procesarResenas(res.en(1));
-    expect(primera).toMatchObject({ etapa: "completas" });
+    await r.procesarResenas(res.en(1));
     const ciclo = await db.cicloResena.findUniqueOrThrow({ where: { reservaId: res.id } });
     expect(ciclo.invitacionEnviadaEn).not.toBeNull();
     expect(ciclo.recordatorioDuenoEn).not.toBeNull();
@@ -368,12 +367,19 @@ describe("cron de reseñas", () => {
     expect((await db.cicloResena.findUniqueOrThrow({ where: { reservaId: res.id } })).invitacionEnviadaEn).toEqual(ciclo.invitacionEnviadaEn);
   });
 
-  it("apagado no hace nada", async () => {
-    process.env.RESENAS = "";
-    try {
-      expect(await r.procesarResenas()).toEqual({ etapa: "apagadas" });
-    } finally {
-      process.env.RESENAS = "completas";
+  it("en una propiedad con reseñas apagadas o suspendida no invita ni deja reseñar", async () => {
+    for (const cambio of [{ resenas: "apagadas" as const }, { suspendida: true }]) {
+      await db.propiedad.update({ where: { id: propiedadB }, data: cambio });
+      try {
+        const res = await reserva({ cabana: cabanaB });
+        await r.procesarResenas(res.en(1));
+        expect(await db.cicloResena.count({ where: { reservaId: res.id } })).toBe(0);
+        const token = await invitar(res);
+        expect((await r.abrirInvitacion(token, res.en(1))).estado).toBe("no_elegible");
+        expect((await r.enviarResenaCabana(token, { notas, comentario }, res.en(1))).ok).toBe(false);
+      } finally {
+        await db.propiedad.update({ where: { id: propiedadB }, data: { resenas: "completas", suspendida: false } });
+      }
     }
   });
 });
