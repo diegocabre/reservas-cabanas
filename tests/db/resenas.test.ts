@@ -317,7 +317,7 @@ describe("página pública y JSON-LD", () => {
     const conRespuesta = publicas.find((x) => x.respuesta === "¡Gracias por venir!");
     expect(conRespuesta).toBeDefined();
 
-    const ld = jsonLdCabana({ nombre: "Cabaña B", url: "https://x.cl/b", imagen: null, descripcion: "", ubicacion: null }, publicas) as Record<string, any>;
+    const ld = jsonLdCabana({ nombre: "Cabaña B", url: "https://x.cl/b", imagen: null, descripcion: "", ubicacion: null }, publicas)!;
     expect(ld.aggregateRating.reviewCount).toBe(publicas.length);
     const esperado = Math.round((publicas.reduce((s, p) => s + (p.limpieza + p.ubicacion + p.comunicacion + p.veracidad + p.calidadPrecio) / 5, 0) / publicas.length) * 10) / 10;
     expect(ld.aggregateRating.ratingValue).toBe(esperado);

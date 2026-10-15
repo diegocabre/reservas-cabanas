@@ -182,7 +182,7 @@ describe("jsonLdCabana", () => {
     expect(jsonLdCabana(cabana, [])).toBeNull();
   });
   it("promedio, conteo y reseñas reales", () => {
-    const ld = jsonLdCabana(cabana, [resena(5), resena(4)]) as Record<string, any>;
+    const ld = jsonLdCabana(cabana, [resena(5), resena(4)])!;
     expect(ld["@type"]).toBe("VacationRental");
     expect(ld.aggregateRating).toEqual({ "@type": "AggregateRating", ratingValue: 4.5, reviewCount: 2, bestRating: 5, worstRating: 1 });
     expect(ld.review).toHaveLength(2);
@@ -190,7 +190,7 @@ describe("jsonLdCabana", () => {
     expect(ld.address).toMatchObject({ addressLocality: "Maicolpue", addressCountry: "CL" });
   });
   it("el conteo es el total aunque el detalle se limite", () => {
-    const ld = jsonLdCabana(cabana, Array.from({ length: 12 }, () => resena(5)), 10) as Record<string, any>;
+    const ld = jsonLdCabana(cabana, Array.from({ length: 12 }, () => resena(5)), 10)!;
     expect(ld.aggregateRating.reviewCount).toBe(12);
     expect(ld.review).toHaveLength(10);
   });

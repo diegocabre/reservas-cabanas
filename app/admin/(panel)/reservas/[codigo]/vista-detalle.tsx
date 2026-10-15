@@ -11,6 +11,7 @@ import { enlaceWhatsapp, mensajeAlHuesped } from "@/lib/whatsapp";
 import { EtiquetaEstado } from "../../resumen";
 import { AccionesReserva } from "./acciones-reserva";
 import { AccionesPago, AccionesSolicitud } from "./acciones-solicitud";
+import { BloqueResenas, type ResenasDetalle } from "./bloque-resenas";
 
 const HECHO = {
   confirmada: "Reserva confirmada. Le enviamos el email de confirmación al huésped.",
@@ -21,6 +22,7 @@ const HECHO = {
   rechazada: "Solicitud rechazada. Las fechas quedaron libres y le avisamos al huésped.",
   link: "Generamos un nuevo link de pago y se lo enviamos al huésped.",
   correo: "Le reenviamos al huésped el correo con el link de pago.",
+  resena: "Guardamos tu reseña del huésped.",
 } as const;
 
 const ACCION = {
@@ -64,7 +66,17 @@ function Dato({ nombre, children }: { nombre: string; children: ReactNode }) {
 
 const caja = "divide-y divide-linea overflow-hidden rounded-2xl border border-linea bg-nieve";
 
-export function VistaDetalle({ r, hecho, hoy }: { r: DetalleReserva; hecho?: string; hoy: string }) {
+export function VistaDetalle({
+  r,
+  hecho,
+  hoy,
+  resenas = null,
+}: {
+  r: DetalleReserva;
+  hecho?: string;
+  hoy: string;
+  resenas?: ResenasDetalle | null;
+}) {
   const puede = accionesDisponibles({ estado: r.estado, total: r.total, pagado: r.pagado, notas: r.notas });
   const revisar = tieneRevisarPago(r.notas);
   const whatsapp = enlaceWhatsapp(
@@ -219,6 +231,8 @@ export function VistaDetalle({ r, hecho, hoy }: { r: DetalleReserva; hecho?: str
           </a>
         )}
       </Bloque>
+
+      {resenas && <BloqueResenas codigo={r.codigo} resenas={resenas} />}
 
       <Bloque titulo="Precio">
         <dl className={caja}>

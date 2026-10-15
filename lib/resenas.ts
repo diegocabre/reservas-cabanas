@@ -87,7 +87,8 @@ export async function asegurarHuesped(cx: Conexion, r: ReservaHuesped, poblado =
   });
   const h = await cx.huesped.findUniqueOrThrow({ where: { email }, select: { id: true, telefono: true } });
   if (!h.telefono && telefono) await cx.huesped.updateMany({ where: { id: h.id, telefono: null }, data: { telefono } });
-  await cx.reserva.updateMany({ where: { id: r.id, huespedId: null }, data: { huespedId: h.id } });
+  // SQL directo: Prisma actualizaría reserva.updated_at, y la reserva no cambia (solo se enlaza).
+  await cx.$executeRaw`update reserva set huesped_id = ${h.id}::uuid where id = ${r.id}::uuid and huesped_id is null`;
   return h.id;
 }
 

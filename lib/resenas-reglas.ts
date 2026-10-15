@@ -223,7 +223,7 @@ export function jsonLdCabana(
   cabana: { nombre: string; url: string; imagen: string | null; descripcion: string; ubicacion: string | null },
   resenas: ResenaPublica[],
   maximoResenas = 10,
-): Record<string, unknown> | null {
+) {
   const resumen = resumirResenas(resenas);
   if (!resumen) return null;
   return {

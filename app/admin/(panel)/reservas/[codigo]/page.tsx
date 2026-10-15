@@ -4,6 +4,8 @@ import { requerirAdmin } from "@/lib/admin";
 import { normalizarCodigo } from "@/lib/codigo";
 import { hoyEnChile } from "@/lib/formato";
 import { detalleReserva } from "@/lib/panel-datos";
+import { historialHuesped, resenasDeReserva } from "@/lib/resenas";
+import { resenasHuespedActivas } from "@/lib/resenas-reglas";
 import { VistaDetalle } from "./vista-detalle";
 
 export async function generateMetadata({ params }: PageProps<"/admin/reservas/[codigo]">): Promise<Metadata> {
@@ -20,5 +22,14 @@ export default async function PaginaDetalleReserva({ params, searchParams }: Pag
   const reserva = await detalleReserva(admin, normalizarCodigo(decodeURIComponent(codigo)));
   if (!reserva) notFound();
 
-  return <VistaDetalle r={reserva} hecho={typeof hecho === "string" ? hecho : undefined} hoy={hoyEnChile()} />;
+  // Reseña privada del huésped e historial con este dueño (solo con las reseñas del huésped activas).
+  const hoy = hoyEnChile();
+  const resenas = resenasHuespedActivas()
+    ? {
+        estado: await resenasDeReserva(admin, reserva.codigo),
+        historial: await historialHuesped(admin, { email: reserva.huespedEmail, telefono: reserva.huespedTelefono }, hoy),
+      }
+    : null;
+
+  return <VistaDetalle r={reserva} hecho={typeof hecho === "string" ? hecho : undefined} hoy={hoy} resenas={resenas} />;
 }

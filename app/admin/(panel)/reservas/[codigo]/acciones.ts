@@ -11,6 +11,8 @@ import { enviarEmailsReservaConfirmada } from "@/lib/emails";
 import { MEDIOS_PAGO_SALDO } from "@/lib/estados-reserva";
 import { hoyEnChile } from "@/lib/formato";
 import { cancelarReserva, confirmarReserva, marcarRevisado, registrarPago } from "@/lib/panel-acciones";
+import { escribirResenaHuesped } from "@/lib/resenas";
+import { resenasHuespedActivas } from "@/lib/resenas-reglas";
 
 // Server Actions del detalle de reserva. Cada una vuelve a verificar al admin (las acciones son
 // endpoints públicos: el layout no las protege), valida con Zod y delega en lib/panel-acciones.ts,
@@ -135,6 +137,25 @@ export async function accionReenviarCorreo(_previo: EstadoAccion, formData: Form
   const enviado = await avisarHuesped(cod.data, "solicitud_aprobada");
   if (!enviado.ok) return { error: `No se pudo enviar el correo: ${enviado.error}` };
   terminar(cod.data, "correo");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reseña privada del huésped: lib/resenas.ts (RLS, doble ciego).
+// ---------------------------------------------------------------------------------------------
+
+export async function accionResenaHuesped(_previo: EstadoAccion, formData: FormData): Promise<EstadoAccion> {
+  const admin = await requerirAdmin();
+  if (!resenasHuespedActivas()) return { error: "Las reseñas de huéspedes están desactivadas." };
+  const cod = codigo.safeParse(formData.get("codigo"));
+  if (!cod.success) return { error: "Reserva inválida." };
+
+  const r = await escribirResenaHuesped(admin, cod.data, {
+    calificacion: formData.get("calificacion"),
+    etiquetas: formData.getAll("etiquetas"),
+    comentario: formData.get("comentario"),
+  });
+  if (!r.ok) return { error: r.error };
+  terminar(cod.data, "resena");
 }
 
 /** El dueño abrió WhatsApp con el link de pago: se registra la hora ("abierto", no "entregado"). */
