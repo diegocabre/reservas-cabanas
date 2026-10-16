@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   accionesDisponibles,
-  marcarPagoRevisado,
-  tieneRevisarPago,
   validarMotivo,
   validarPagoSaldo,
   validarTransicion,
@@ -98,32 +96,21 @@ describe("validarPagoSaldo", () => {
   });
 });
 
-describe("pago en revisión", () => {
-  it("marca las líneas [REVISAR PAGO] como revisadas sin borrar el resto", () => {
-    const notas = "[PRUEBA] llegan tarde\n[REVISAR PAGO] pago 9 aprobado por $1, distinto al abono";
-    expect(tieneRevisarPago(notas)).toBe(true);
-    const revisadas = marcarPagoRevisado(notas);
-    expect(revisadas).toBe("[PRUEBA] llegan tarde\n[PAGO REVISADO] pago 9 aprobado por $1, distinto al abono");
-    expect(tieneRevisarPago(revisadas)).toBe(false);
-    expect(marcarPagoRevisado(null)).toBeNull();
-  });
-});
-
 describe("accionesDisponibles", () => {
   it("ofrece solo lo que el estado permite", () => {
-    expect(accionesDisponibles({ estado: "confirmada", total: 100, pagado: 50, notas: null })).toEqual({
+    expect(accionesDisponibles({ estado: "confirmada", total: 100, pagado: 50, revisarPago: false })).toEqual({
       confirmar: false,
       cancelar: true,
       registrarPago: true,
       marcarRevisado: false,
     });
-    expect(accionesDisponibles({ estado: "cancelada", total: 100, pagado: 50, notas: "[REVISAR PAGO] x" })).toEqual({
+    expect(accionesDisponibles({ estado: "cancelada", total: 100, pagado: 50, revisarPago: true })).toEqual({
       confirmar: true,
       cancelar: false,
       registrarPago: false,
       marcarRevisado: true,
     });
-    expect(accionesDisponibles({ estado: "completada", total: 100, pagado: 100, notas: null })).toEqual({
+    expect(accionesDisponibles({ estado: "completada", total: 100, pagado: 100, revisarPago: false })).toEqual({
       confirmar: false,
       cancelar: false,
       registrarPago: false,

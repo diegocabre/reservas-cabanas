@@ -14,9 +14,6 @@ import type { DatosReserva } from "@/lib/reserva-esquema";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
-/** Prefijo en `notas` de las reservas hechas en modo prueba. */
-export const MARCA_PRUEBA = "[PRUEBA]";
-
 /** Cuántos meses hacia adelante se puede reservar. */
 export const MESES_RESERVABLES = 12;
 
@@ -267,8 +264,10 @@ async function insertarReservaWeb(
           estado,
           origen: "web",
           expiraEn,
-          // En modo prueba la reserva queda marcada, para poder identificarla y limpiarla después.
-          notas: enModoPrueba() ? [MARCA_PRUEBA, datos.notas].filter(Boolean).join(" ") : datos.notas || null,
+          // En modo prueba la reserva queda marcada (columna es_prueba), para identificarla y limpiarla después.
+          // notas es solo el texto del huésped: nunca se interpreta.
+          esPrueba: enModoPrueba(),
+          notas: datos.notas || null,
         },
       });
     });
@@ -318,7 +317,7 @@ export async function obtenerReservaPublica(codigo: string) {
       estado: true,
       expiraEn: true,
       aprobadaEn: true,
-      notas: true,
+      esPrueba: true,
       pagos: { select: { estado: true } },
       cabana: {
         select: {
@@ -346,7 +345,7 @@ export async function obtenerReservaPublica(codigo: string) {
   if (!reserva) return null;
 
   // El link de pago no sale de aquí: el huésped paga con un botón (pagarAbono) que redirige a él.
-  const { huespedNombre, huespedEmail, checkIn, checkOut, notas, pagos, aprobadaEn, ...resto } = reserva;
+  const { huespedNombre, huespedEmail, checkIn, checkOut, esPrueba, pagos, aprobadaEn, ...resto } = reserva;
   // Solo nombre e inicial del apellido: el código es fácil de adivinar.
   const [nombre, apellido] = huespedNombre.split(/\s+/);
   return {
@@ -355,7 +354,7 @@ export async function obtenerReservaPublica(codigo: string) {
     checkOut: aFechaIso(checkOut),
     huesped: apellido ? `${nombre} ${apellido[0]}.` : nombre,
     emailOculto: ocultarEmail(huespedEmail),
-    prueba: notas?.startsWith(MARCA_PRUEBA) ?? false,
+    prueba: esPrueba,
     pagoEnProceso: pagos.some((p) => p.estado === "pendiente"),
     aprobada: aprobadaEn !== null,
     vencida: plazoVencido(reserva, new Date()),

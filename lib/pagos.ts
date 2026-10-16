@@ -96,7 +96,7 @@ export type OrigenConsulta = "vendedor" | "propiedad" | "plataforma";
 /**
  * ¿El pago lo cobró la cuenta que corresponde a la reserva?
  * - "ok": se aplica. "ignorar": no es de esta reserva (sin rastro). "revisar": un pago aprobado que no
- *   cumple la regla: queda [REVISAR PAGO] y se avisa al superadmin, nunca se descarta en silencio.
+ *   cumple la regla: queda para revisión (revisar_pago) y se avisa al superadmin, nunca se descarta en silencio.
  * Sin modo estricto: la regla anterior (cobroDeLaCuentaEsperada). Con modo estricto: con cuenta
  * conectada, debe cobrarla esa cuenta; sin cuenta conectada, solo la cuenta de la plataforma (el pago
  * se consultó con su token) y solo en modo prueba.
@@ -117,9 +117,6 @@ export function verificarCuentaCobro(p: {
   if (cumple) return "ok";
   return p.aprobado ? "revisar" : "ignorar";
 }
-
-/** Marca en `notas` de una reserva con un pago que el dueño debe revisar (monto distinto, fechas tomadas). */
-export const MARCA_REVISAR = "[REVISAR PAGO]";
 
 export type EstadoPagoInterno = "pendiente" | "aprobado" | "rechazado";
 
@@ -152,7 +149,7 @@ export function evaluarPago(
 
 /** Qué hacer con un pago ya evaluado, según la reserva y lo que ya estaba registrado. */
 export type DecisionPago =
-  | { accion: "revisar"; detalle: string } // queda [REVISAR PAGO] en la reserva; resultado "revisar"
+  | { accion: "revisar"; detalle: string } // queda revisar_pago con este motivo; resultado "revisar"
   | { accion: "terminar"; resultado: "pendiente" | "rechazado" | "ya_registrado" }
   | { accion: "confirmar" }; // intentar confirmar (puede terminar en revisión por bloqueo o traslape)
 

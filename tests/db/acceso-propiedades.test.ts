@@ -259,9 +259,9 @@ describe("datosResumen (resumen del día)", () => {
     expect(datos?.reservas[0]).toMatchObject({ checkIn: "2031-01-10", checkOut: "2031-01-12", pagado: 0, telefono: "+56911111111" });
   });
 
-  it("incluye las reservas con [REVISAR PAGO] aunque estén canceladas y fuera del periodo", async () => {
+  it("incluye las reservas con pago por revisar aunque estén canceladas y fuera del periodo", async () => {
     const revisar = await db.reserva.create({
-      data: { ...reservaNueva(cabanaA), estado: "cancelada", notas: "[REVISAR PAGO] pago 1 aprobado por $1, distinto al abono" },
+      data: { ...reservaNueva(cabanaA), estado: "cancelada", revisarPago: true, revisarPagoMotivo: "pago 1 aprobado por $1, distinto al abono" },
       select: { codigo: true },
     });
     const datos = await datosResumen(adminA, propiedadA, "2031-01-10");

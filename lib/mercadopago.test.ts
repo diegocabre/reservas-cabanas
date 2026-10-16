@@ -1,5 +1,7 @@
 // Tests de caracterización de registrarPagoMercadoPago: fijan el comportamiento actual (cómo queda la
 // reserva según el pago) con la API de Mercado Pago, la base y los correos simulados. Ningún cobro real.
+// Fase 5 del endurecimiento: la marca de revisión pasó de notas a revisar_pago / revisar_pago_motivo;
+// solo cambiaron esas aserciones de almacenamiento, no los resultados.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
@@ -41,7 +43,7 @@ type Reserva = {
   codigo: string;
   abono: number;
   estado: string;
-  notas: string | null;
+  revisarPagoMotivo: string | null;
   cabanaId: string;
   checkIn: Date;
   checkOut: Date;
@@ -103,7 +105,7 @@ beforeEach(() => {
     codigo: "LL-7K3QX9",
     abono: 90_000,
     estado: "pendiente_pago",
-    notas: null,
+    revisarPagoMotivo: null,
     cabanaId: "c1",
     checkIn: new Date("2026-11-10T00:00:00Z"),
     checkOut: new Date("2026-11-13T00:00:00Z"),
@@ -202,7 +204,7 @@ describe("registrarPagoMercadoPago (caracterización)", () => {
     m.pagoApi = { ...m.pagoApi, transaction_amount: 1_000 };
     expect(await registrarPagoMercadoPago("555", { mpUserId: "111" })).toBe("revisar");
     expect(escrituras.upserts).toHaveLength(1);
-    expect(escrituras.updates).toEqual([{ where: { id: "r1" }, data: { notas: "[REVISAR PAGO] pago 555 aprobado por $1000, distinto al abono" } }]);
+    expect(escrituras.updates).toEqual([{ where: { id: "r1" }, data: { revisarPago: true, revisarPagoMotivo: "pago 555 aprobado por $1000, distinto al abono" } }]);
     expect(escrituras.txUpdates).toEqual([]);
     expect(m.enviarEmails).not.toHaveBeenCalled();
   });
@@ -212,14 +214,14 @@ describe("registrarPagoMercadoPago (caracterización)", () => {
     expect(await registrarPagoMercadoPago("555", { mpUserId: "111" })).toBe("revisar");
   });
 
-  it("la marca de revisión se agrega a las notas existentes y no se repite", async () => {
+  it("el motivo de revisión se agrega a los anteriores y no se repite", async () => {
     m.pagoApi = { ...m.pagoApi, transaction_amount: 1_000 };
-    reserva!.notas = "Llegamos tarde\n[REVISAR PAGO] pago 555 aprobado por $1000, distinto al abono";
+    reserva!.revisarPagoMotivo = "pago 444 aprobado por $5, distinto al abono\npago 555 aprobado por $1000, distinto al abono";
     expect(await registrarPagoMercadoPago("555", { mpUserId: "111" })).toBe("revisar");
     expect(escrituras.updates).toEqual([]);
-    reserva!.notas = "Llegamos tarde";
+    reserva!.revisarPagoMotivo = "pago 444 aprobado por $5, distinto al abono";
     await registrarPagoMercadoPago("555", { mpUserId: "111" });
-    expect(escrituras.updates[0].data.notas).toBe("Llegamos tarde\n[REVISAR PAGO] pago 555 aprobado por $1000, distinto al abono");
+    expect(escrituras.updates[0].data.revisarPagoMotivo).toBe("pago 444 aprobado por $5, distinto al abono\npago 555 aprobado por $1000, distinto al abono");
   });
 
   it.each([
@@ -250,7 +252,7 @@ describe("registrarPagoMercadoPago (caracterización)", () => {
   it("solicitud rechazada por el dueño: no se confirma, queda para reembolsar", async () => {
     reserva!.estado = "rechazada";
     expect(await registrarPagoMercadoPago("555", { mpUserId: "111" })).toBe("revisar");
-    expect(escrituras.updates[0].data.notas).toBe("[REVISAR PAGO] pago 555 aprobado en una solicitud rechazada: reembolsar");
+    expect(escrituras.updates[0].data).toEqual({ revisarPago: true, revisarPagoMotivo: "pago 555 aprobado en una solicitud rechazada: reembolsar" });
     expect(escrituras.txUpdates).toEqual([]);
   });
 
@@ -263,14 +265,14 @@ describe("registrarPagoMercadoPago (caracterización)", () => {
     bloqueos = 1;
     expect(await registrarPagoMercadoPago("555", { mpUserId: "111" })).toBe("revisar");
     expect(escrituras.txUpdates).toEqual([]);
-    expect(escrituras.updates[0].data.notas).toBe("[REVISAR PAGO] pago 555 aprobado, pero el dueño bloqueó esas fechas: revisar o reembolsar");
+    expect(escrituras.updates[0].data).toEqual({ revisarPago: true, revisarPagoMotivo: "pago 555 aprobado, pero el dueño bloqueó esas fechas: revisar o reembolsar" });
     expect(m.enviarEmails).not.toHaveBeenCalled();
   });
 
   it("otra reserva tomó las fechas (traslape): queda para reembolsar", async () => {
     errorAlConfirmar = errorTraslape;
     expect(await registrarPagoMercadoPago("555", { mpUserId: "111" })).toBe("revisar");
-    expect(escrituras.updates[0].data.notas).toBe("[REVISAR PAGO] pago 555 aprobado después de vencer y las fechas ya están tomadas: reembolsar");
+    expect(escrituras.updates[0].data).toEqual({ revisarPago: true, revisarPagoMotivo: "pago 555 aprobado después de vencer y las fechas ya están tomadas: reembolsar" });
     expect(m.enviarEmails).not.toHaveBeenCalled();
   });
 

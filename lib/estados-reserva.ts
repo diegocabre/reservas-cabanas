@@ -2,8 +2,6 @@
 // El servidor las vuelve a aplicar dentro de la transacción con el estado leído de la base:
 // lo que muestra el navegador nunca decide.
 
-import { MARCA_REVISAR } from "@/lib/pagos";
-
 // Los estados de reserva viven en el enum de Prisma (estado_reserva); aquí, sus listas y nombres.
 export type { EstadoReserva } from "@/lib/generated/prisma/enums";
 import type { EstadoReserva } from "@/lib/generated/prisma/enums";
@@ -116,23 +114,12 @@ export function validarPagoSaldo(p: {
 
 const formatoPesos = (n: number) => `$${n.toLocaleString("es-CL")}`;
 
-/** Las líneas [REVISAR PAGO] quedan como [PAGO REVISADO]: el aviso desaparece y la historia se conserva. */
-export const MARCA_REVISADO = "[PAGO REVISADO]";
-
-export function marcarPagoRevisado(notas: string | null): string | null {
-  return notas?.replaceAll(MARCA_REVISAR, MARCA_REVISADO) ?? null;
-}
-
-export function tieneRevisarPago(notas: string | null | undefined): boolean {
-  return Boolean(notas?.includes(MARCA_REVISAR));
-}
-
 /** Acciones que el panel ofrece para una reserva (el servidor igual las vuelve a validar). */
-export function accionesDisponibles(r: { estado: EstadoReserva; total: number; pagado: number; notas: string | null }) {
+export function accionesDisponibles(r: { estado: EstadoReserva; total: number; pagado: number; revisarPago: boolean }) {
   return {
     confirmar: validarTransicion("confirmar", r.estado).ok,
     cancelar: validarTransicion("cancelar", r.estado).ok,
     registrarPago: ACEPTA_PAGOS.includes(r.estado) && r.total - r.pagado > 0,
-    marcarRevisado: tieneRevisarPago(r.notas),
+    marcarRevisado: r.revisarPago,
   };
 }

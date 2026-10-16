@@ -4,7 +4,6 @@ import { ReservaApartada } from "@/emails/reserva-apartada";
 import { db } from "@/lib/db";
 import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
 import { aFechaIso, nochesEntre, saldoReserva } from "@/lib/precios";
-import { MARCA_PRUEBA } from "@/lib/reservas";
 import { urlDelSitio } from "@/lib/sitio";
 import { enlaceWhatsapp, mensajeReserva } from "@/lib/whatsapp";
 
@@ -45,7 +44,7 @@ export async function enviarEmailReservaApartada(codigo: string): Promise<void> 
         abono: true,
         estado: true,
         expiraEn: true,
-        notas: true,
+        esPrueba: true,
         huespedNombre: true,
         huespedEmail: true,
         cabana: { select: { nombre: true, propiedad: { select: { nombre: true, email: true } } } },
@@ -55,7 +54,7 @@ export async function enviarEmailReservaApartada(codigo: string): Promise<void> 
 
     const checkIn = aFechaIso(r.checkIn);
     const checkOut = aFechaIso(r.checkOut);
-    const prueba = r.notas?.startsWith(MARCA_PRUEBA) ?? false;
+    const prueba = r.esPrueba;
     const sitio = urlDelSitio();
     const { propiedad } = r.cabana;
 
@@ -108,7 +107,7 @@ export async function enviarEmailsReservaConfirmada(codigo: string): Promise<voi
         ninos: true,
         total: true,
         abono: true,
-        notas: true,
+        esPrueba: true,
         huespedNombre: true,
         huespedEmail: true,
         huespedTelefono: true,
@@ -138,7 +137,7 @@ export async function enviarEmailsReservaConfirmada(codigo: string): Promise<voi
     const checkIn = aFechaIso(r.checkIn);
     const checkOut = aFechaIso(r.checkOut);
     const nombre = r.huespedNombre.split(/\s+/)[0];
-    const prueba = r.notas?.startsWith(MARCA_PRUEBA) ?? false;
+    const prueba = r.esPrueba;
 
     const datos: DatosEmailConfirmacion = {
       codigo: r.codigo,

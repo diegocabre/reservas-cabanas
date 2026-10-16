@@ -1,11 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { IconoFlecha, IconoWhatsapp } from "@/components/iconos";
-import { accionesDisponibles, NOMBRE_ESTADO, NOMBRE_MEDIO, tieneRevisarPago } from "@/lib/estados-reserva";
+import { accionesDisponibles, NOMBRE_ESTADO, NOMBRE_MEDIO } from "@/lib/estados-reserva";
 import { formatearCLP, formatearFechaCorta, formatearFechaHora, formatearFechaLarga, formatearHora, hoyEnChile } from "@/lib/formato";
-import { MARCA_PRUEBA } from "@/lib/reservas";
 import { botonWhatsappAprobacion } from "@/lib/solicitudes";
-import { MARCA_REVISAR } from "@/lib/pagos";
 import type { DetalleReserva } from "@/lib/panel-datos";
 import { enlaceWhatsapp, mensajeAlHuesped } from "@/lib/whatsapp";
 import { EtiquetaEstado } from "../../resumen";
@@ -77,8 +75,8 @@ export function VistaDetalle({
   hoy: string;
   resenas?: ResenasDetalle | null;
 }) {
-  const puede = accionesDisponibles({ estado: r.estado, total: r.total, pagado: r.pagado, notas: r.notas });
-  const revisar = tieneRevisarPago(r.notas);
+  const puede = accionesDisponibles({ estado: r.estado, total: r.total, pagado: r.pagado, revisarPago: r.revisarPago });
+  const revisar = r.revisarPago;
   const whatsapp = enlaceWhatsapp(
     r.huespedTelefono,
     mensajeAlHuesped({ nombre: r.huespedNombre, propiedad: r.cabana.propiedad.nombre, codigo: r.codigo, checkIn: r.checkIn }),
@@ -97,7 +95,7 @@ export function VistaDetalle({
     linkPagoExpiraEn: r.estado === "aprobada_pendiente_pago" ? r.linkPagoExpiraEn : null,
     ahora: new Date(),
   });
-  const mensajeHuesped = r.notas?.replace(MARCA_PRUEBA, "").trim();
+  const mensajeHuesped = r.notas?.trim();
 
   return (
     <>
@@ -126,14 +124,11 @@ export function VistaDetalle({
           <h2 id="titulo-revisar" className="font-bold text-fuego-hondo">
             Pago por revisar
           </h2>
-          {r.notas
-            ?.split("\n")
-            .filter((l) => l.includes(MARCA_REVISAR))
-            .map((l) => (
-              <p key={l} className="mt-1">
-                {l.replace(MARCA_REVISAR, "").trim()}
-              </p>
-            ))}
+          {r.revisarPagoMotivo?.split("\n").map((l) => (
+            <p key={l} className="mt-1">
+              {l}
+            </p>
+          ))}
           <p className="mt-2 text-tinta-suave">
             Revisa el pago en tu cuenta de Mercado Pago. Si corresponde, confirma la reserva; si lo devolviste, márcalo como revisado.
           </p>

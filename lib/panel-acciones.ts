@@ -6,9 +6,7 @@
 
 import { cerrojoCabana, codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import {
-  marcarPagoRevisado,
   NOMBRE_MEDIO,
-  tieneRevisarPago,
   validarMotivo,
   validarPagoSaldo,
   validarTransicion,
@@ -26,7 +24,7 @@ type FilaReserva = {
   id: string;
   estado: EstadoReserva;
   total: number;
-  notas: string | null;
+  revisar_pago: boolean;
   cabana_id: string;
   check_in: Date;
   check_out: Date;
@@ -36,7 +34,7 @@ type FilaReserva = {
 export async function bloquearReserva(tx: TxPanel, admin: AdminSesion, codigo: string): Promise<FilaReserva> {
   const ids = idsPropiedades(admin);
   const filas = await tx.$queryRaw<FilaReserva[]>`
-    select r.id, r.estado::text as estado, r.total, r.notas, r.cabana_id, r.check_in, r.check_out
+    select r.id, r.estado::text as estado, r.total, r.revisar_pago, r.cabana_id, r.check_in, r.check_out
     from reserva r join cabana c on c.id = r.cabana_id
     where r.codigo = ${codigo} and c.propiedad_id = any(${ids}::uuid[])
     for update of r`;
@@ -87,8 +85,8 @@ export async function ejecutar<T extends object>(
 
 /**
  * Confirma una reserva pendiente o cancelada (por ejemplo, después de revisar un pago marcado
- * [REVISAR PAGO]). Revisa los bloqueos; las reservas activas en esas fechas las rechaza la base.
- * Las líneas [REVISAR PAGO] quedan como [PAGO REVISADO].
+ * para revisión: revisar_pago). Revisa los bloqueos; las reservas activas en esas fechas las rechaza la base.
+ * El aviso de revisión se apaga; el motivo (revisar_pago_motivo) se conserva como historia.
  */
 export function confirmarReserva(admin: AdminSesion, codigo: string) {
   return ejecutar(admin, async (tx) => {
@@ -104,14 +102,14 @@ export function confirmarReserva(admin: AdminSesion, codigo: string) {
 
     await tx.reserva.update({
       where: { id: r.id },
-      data: { estado: t.hacia, expiraEn: null, notas: marcarPagoRevisado(r.notas) },
+      data: { estado: t.hacia, expiraEn: null, revisarPago: false },
     });
     await auditar(tx, admin, {
       reservaId: r.id,
       accion: "confirmar",
       antes: r.estado,
       despues: t.hacia,
-      detalle: tieneRevisarPago(r.notas) ? "Confirmada después de revisar el pago" : undefined,
+      detalle: r.revisar_pago ? "Confirmada después de revisar el pago" : undefined,
     });
     return { estado: t.hacia };
   });
@@ -173,14 +171,14 @@ export function registrarPago(
 }
 
 /**
- * Marca como revisado un pago [REVISAR PAGO] sin cambiar el estado (por ejemplo, una reserva
+ * Marca como revisado un pago por revisar (revisar_pago) sin cambiar el estado (por ejemplo, una reserva
  * cancelada cuyo pago tardío ya se devolvió). Quita el aviso del resumen.
  */
 export function marcarRevisado(admin: AdminSesion, codigo: string, nota: string) {
   return ejecutar(admin, async (tx) => {
     const r = await bloquearReserva(tx, admin, codigo);
-    if (!tieneRevisarPago(r.notas)) throw new ErrorAccion("Esta reserva no tiene pagos por revisar.");
-    await tx.reserva.update({ where: { id: r.id }, data: { notas: marcarPagoRevisado(r.notas) } });
+    if (!r.revisar_pago) throw new ErrorAccion("Esta reserva no tiene pagos por revisar.");
+    await tx.reserva.update({ where: { id: r.id }, data: { revisarPago: false } });
     await auditar(tx, admin, {
       reservaId: r.id,
       accion: "marcar_revisado",

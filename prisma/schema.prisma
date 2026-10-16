@@ -229,7 +229,10 @@ model Reserva {
   estado                EstadoReserva @default(pendiente_pago)
   origen                OrigenReserva @default(web)
   expiraEn              DateTime?     @map("expira_en") @db.Timestamptz(3) // plazo para pagar, o para que el dueño responda una solicitud
-  notas                 String?
+  notas                 String? // texto libre (del huésped o del dueño): nunca se interpreta
+  esPrueba              Boolean       @default(false) @map("es_prueba") // creada en modo prueba: sin "[Prueba]" en notas
+  revisarPago           Boolean       @default(false) @map("revisar_pago") // pago que no se pudo aplicar solo (lib/mercadopago.ts)
+  revisarPagoMotivo     String?       @map("revisar_pago_motivo") // una línea por pago; se conserva al marcarlo revisado
   // Solicitudes (cabana.requiere_aprobacion). Ver lib/aprobacion.ts.
   aprobadaEn            DateTime?     @map("aprobada_en") @db.Timestamptz(3)
   linkPago              String?       @map("link_pago") // link de Mercado Pago creado al aprobar; solo lo ven el huésped y el dueño

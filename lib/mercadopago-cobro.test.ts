@@ -5,11 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   pago: {} as Record<string, unknown>,
   vendedor: "111" as string | null,
-  notas: null as string | null,
+  motivos: null as string | null,
   updates: [] as { data: Record<string, unknown> }[],
   upserts: 0,
   confirmaciones: 0,
-  avisarSuperadmins: vi.fn(async (..._args: unknown[]) => ({ ok: true })),
+  avisarSuperadmins: vi.fn<(emails: string[], asunto: string, texto: string) => Promise<{ ok: boolean }>>(async () => ({ ok: true })),
   enviarEmails: vi.fn(),
 }));
 
@@ -36,7 +36,7 @@ vi.mock("@/lib/db", () => {
     codigo: "LL-7K3QX9",
     abono: 90_000,
     estado: "pendiente_pago",
-    notas: m.notas,
+    revisarPagoMotivo: m.motivos,
     cabanaId: "c1",
     checkIn: new Date("2026-11-10T00:00:00Z"),
     checkOut: new Date("2026-11-13T00:00:00Z"),
@@ -46,9 +46,9 @@ vi.mock("@/lib/db", () => {
     db: {
       reserva: {
         findUnique: async () => reserva(),
-        update: async (args: { data: { notas?: string } }) => {
+        update: async (args: { data: { revisarPagoMotivo?: string } }) => {
           m.updates.push(args);
-          if (args.data.notas !== undefined) m.notas = args.data.notas;
+          if (args.data.revisarPagoMotivo !== undefined) m.motivos = args.data.revisarPagoMotivo;
         },
       },
       cuentaMercadoPago: { findUnique: async () => (m.vendedor ? { mpUserId: m.vendedor } : null) },
@@ -74,7 +74,7 @@ beforeEach(() => {
   vi.stubEnv("MERCADOPAGO_COBRO_ESTRICTO", "true");
   vi.spyOn(console, "warn").mockImplementation(() => {});
   m.vendedor = "111";
-  m.notas = null;
+  m.motivos = null;
   m.updates = [];
   m.upserts = 0;
   m.confirmaciones = 0;
@@ -93,7 +93,7 @@ describe("cobro estricto", () => {
     expect(await registrarPagoMercadoPago("555", { mpUserId: "222" })).toBe("revisar");
     expect(m.upserts).toBe(0);
     expect(m.confirmaciones).toBe(0);
-    expect(m.notas).toBe("[REVISAR PAGO] pago 555 cobrado por otra cuenta de Mercado Pago: revisar");
+    expect(m.updates[0].data).toEqual({ revisarPago: true, revisarPagoMotivo: "pago 555 cobrado por otra cuenta de Mercado Pago: revisar" });
     expect(m.avisarSuperadmins).toHaveBeenCalledTimes(1);
     expect(m.avisarSuperadmins.mock.calls[0][0]).toEqual(["plataforma@solucionesdys.cl"]);
 

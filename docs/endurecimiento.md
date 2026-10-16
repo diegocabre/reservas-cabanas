@@ -101,3 +101,27 @@ Regla nueva (`verificarCuentaCobro`, con `true`): con cuenta conectada, el `coll
 Tests: `lib/pagos.test.ts` (matriz completa: cuenta conectada o no × modo prueba o no × cuenta que coincide o no × origen de la consulta × interruptor), `app/api/webhooks/mercadopago/route.test.ts` (los dos modos), `lib/mercadopago-cobro.test.ts`.
 
 Logs estructurados nuevos (JSON, sin tokens ni datos personales): `webhook_firma_invalida`, `webhook_vendedor_desconocido`, `webhook_pago`, `pago_otra_cuenta`, `correo_superadmin_fallido`.
+
+## Fase 5: estados fuera de `notas`
+
+Migración `20261017130000_estados_fuera_de_notas` (reversa `prisma/reversas/estados_fuera_de_notas.down.sql`, probada en local): `es_prueba boolean not null default false`, `revisar_pago boolean not null default false`, `revisar_pago_motivo text`. Solo agrega columnas: no toca `notas` ni ninguna fila. `reserva` ya tiene RLS y `panel_admin` tiene permisos sobre la tabla completa; no se tocó ninguna migración de RLS.
+
+Lecturas y escrituras reemplazadas (ninguna lee ya marcas en `notas`):
+
+| Antes (`notas`) | Ahora |
+| --- | --- |
+| `crearReservaWeb` anteponía `[PRUEBA]` | `es_prueba = enModoPrueba()`; `notas` = lo que escribió el huésped |
+| `registrarPagoMercadoPago` agregaba líneas `[REVISAR PAGO] …` | `revisar_pago = true` y el motivo en `revisar_pago_motivo` (una línea por pago, sin repetir) |
+| Panel: confirmar o "marcar revisado" cambiaba a `[PAGO REVISADO]` | `revisar_pago = false`; el motivo se conserva y la acción queda en la auditoría |
+| Panel: resumen, lista (filtro "revisar"), detalle y etiqueta "Revisar pago" | `revisar_pago` / `revisar_pago_motivo` |
+| Correos ("[Prueba]" en el asunto), avisos de solicitudes, `/reserva/[codigo]` | `es_prueba` |
+| Reseñas: las de reservas de prueba nunca son públicas | `es_prueba` |
+| Mensaje del huésped en el panel y en los avisos (se le quitaba `[PRUEBA]`) | `notas` tal cual |
+
+Tests: un huésped que escribe `[PRUEBA]` o `[REVISAR PAGO]` no cambia nada (`lib/panel.test.ts`, `tests/db/acciones-reserva.test.ts`, `tests/db/resenas.test.ts`, `tests/db/limites.test.ts`). En los tests de caracterización de pagos solo cambiaron las aserciones de **dónde** se guarda la marca de revisión; los resultados son los mismos.
+
+**Datos existentes — decisión manual:** `npm run marcas:notas` (por defecto solo lista, no escribe; se puede correr contra producción) muestra cada reserva con `[PRUEBA]`, `[REVISAR PAGO]` o `[PAGO REVISADO]` en `notas`, con su fecha de creación, estado, origen y las líneas con marca. Con `--aplicar --prueba=COD1,COD2 --revisar=COD3` (y `--permitir-supabase` en producción) marca solo las columnas de esos códigos; `notas` nunca se toca.
+
+**Ojo con el orden:** hasta que se corra ese poblado, las reservas antiguas con `[REVISAR PAGO]` pendiente **no aparecen** como "pago por revisar" en el panel, y las antiguas con `[PRUEBA]` se tratan como reales (sus reseñas podrían publicarse y sus correos ya no dicen "[Prueba]"). Por eso: migración → listar → decidir y aplicar → recién entonces desplegar el código.
+
+Decisión: el detalle del panel ahora muestra `notas` tal cual; en reservas antiguas se verá el texto `[PRUEBA]` que ya estaba guardado.

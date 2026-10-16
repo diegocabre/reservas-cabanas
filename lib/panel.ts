@@ -2,7 +2,6 @@
 // Rangos [check_in, check_out): el día de salida no es una noche ocupada.
 
 import type { EstadoReserva } from "@/lib/estados-reserva";
-import { MARCA_REVISAR } from "@/lib/pagos";
 import { aFechaIso, nochesEntre, type Fecha } from "@/lib/precios";
 
 export interface ReservaPanel {
@@ -19,6 +18,9 @@ export interface ReservaPanel {
   /** Para escribirle al huésped por WhatsApp. */
   telefono?: string;
   notas?: string | null;
+  /** Pago que no se pudo aplicar solo (columna revisar_pago) y sus motivos, una línea por pago. */
+  revisarPago?: boolean;
+  revisarPagoMotivo?: string | null;
 }
 
 const DIA_MS = 86_400_000;
@@ -93,13 +95,13 @@ export function ocupacionMes(reservas: ReservaPanel[], mes: string, cabanasActiv
 }
 
 /**
- * Reservas con un pago que no se pudo aplicar solo ([REVISAR PAGO] en notas, ver lib/mercadopago.ts):
+ * Reservas con un pago que no se pudo aplicar solo (revisar_pago, ver lib/mercadopago.ts):
  * monto distinto al abono, o pago que llegó cuando las fechas ya estaban tomadas. Cualquier estado:
  * una reserva cancelada por vencer puede tener un pago aprobado que hay que devolver.
  */
-export function porRevisarPago<T extends Pick<ReservaPanel, "notas" | "checkIn" | "cabana">>(reservas: T[]): T[] {
+export function porRevisarPago<T extends Pick<ReservaPanel, "revisarPago" | "checkIn" | "cabana">>(reservas: T[]): T[] {
   return reservas
-    .filter((r) => r.notas?.includes(MARCA_REVISAR))
+    .filter((r) => r.revisarPago)
     .sort((a, b) => aFechaIso(a.checkIn).localeCompare(aFechaIso(b.checkIn)) || a.cabana.localeCompare(b.cabana));
 }
 

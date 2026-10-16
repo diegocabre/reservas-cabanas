@@ -14,7 +14,7 @@
 
 import { db } from "@/lib/db";
 import { cerrojoCabana } from "@/lib/errores-db";
-import { expirarReservasVencidas, MARCA_PRUEBA } from "@/lib/reservas";
+import { expirarReservasVencidas } from "@/lib/reservas";
 import { formatearCLP, formatearFechaHora, formatearFechaLarga } from "@/lib/formato";
 import { crearLinkPagoSolicitud } from "@/lib/mercadopago";
 import {
@@ -235,6 +235,7 @@ async function cargarDatosAviso(codigo: string, motivo: string | null = null): P
       total: true,
       abono: true,
       notas: true,
+      esPrueba: true,
       expiraEn: true,
       linkPago: true,
       linkPagoExpiraEn: true,
@@ -247,7 +248,7 @@ async function cargarDatosAviso(codigo: string, motivo: string | null = null): P
   if (!r) return null;
   const checkIn = aFechaIso(r.checkIn);
   const checkOut = aFechaIso(r.checkOut);
-  const prueba = r.notas?.startsWith(MARCA_PRUEBA) ?? false;
+  const prueba = r.esPrueba;
   const limite = r.linkPagoExpiraEn ?? r.expiraEn;
   const sitio = urlDelSitio();
   return {
@@ -261,8 +262,8 @@ async function cargarDatosAviso(codigo: string, motivo: string | null = null): P
       huespedNombre: r.huespedNombre,
       huespedEmail: r.huespedEmail,
       huespedTelefono: r.huespedTelefono,
-      // El comentario del formulario es la presentación del huésped (sin la marca de prueba).
-      mensaje: r.notas?.replace(MARCA_PRUEBA, "").trim() || null,
+      // El comentario del formulario es la presentación del huésped.
+      mensaje: r.notas?.trim() || null,
       llegada: formatearFechaLarga(checkIn),
       salida: formatearFechaLarga(checkOut),
       noches: nochesEntre(checkIn, checkOut).length,

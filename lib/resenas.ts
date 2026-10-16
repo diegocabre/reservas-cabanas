@@ -21,7 +21,6 @@ import { enviarLinkAccesoHuesped } from "@/lib/notificaciones";
 import { ErrorAccion, ejecutar } from "@/lib/panel-acciones";
 import { comoAdmin, deSusPropiedades, idsPropiedades, type AdminSesion } from "@/lib/panel-acceso";
 import { aFechaIso } from "@/lib/precios";
-import { MARCA_PRUEBA } from "@/lib/reservas";
 import {
   CATEGORIAS,
   DIAS_EDITAR_RESPUESTA,
@@ -323,8 +322,7 @@ export async function resenasPublicas(cabanaId: string): Promise<ResenaPublica[]
     where: {
       cabanaId,
       estado: "publicada",
-      // notas null cuenta como real (NOT LIKE con null no pasaría el filtro).
-      reserva: { OR: [{ notas: null }, { NOT: { notas: { startsWith: MARCA_PRUEBA } } }] },
+      reserva: { esPrueba: false },
     },
     select: {
       id: true,
@@ -373,7 +371,7 @@ export async function datosResenasPanel(admin: AdminSesion, hoy: string) {
         veracidad: true,
         calidadPrecio: true,
         cabana: { select: { nombre: true } },
-        reserva: { select: { codigo: true, notas: true } },
+        reserva: { select: { codigo: true, esPrueba: true } },
         respuesta: { select: { texto: true, createdAt: true } },
         reportes: { where: { usuarioId: admin.usuarioId }, select: { estado: true, motivo: true } },
       },
@@ -400,7 +398,7 @@ export async function datosResenasPanel(admin: AdminSesion, hoy: string) {
   return {
     resenas: resenas.map((r) => ({
       ...r,
-      prueba: r.reserva.notas?.startsWith(MARCA_PRUEBA) ?? false, // nunca sale en la página pública
+      prueba: r.reserva.esPrueba, // nunca sale en la página pública
       respuestaEditable: !r.respuesta || ahora - r.respuesta.createdAt.getTime() <= DIAS_EDITAR_RESPUESTA * DIA_MS,
     })),
     recientes: recientes.map((r) => ({ ...r, checkOut: aFechaIso(r.checkOut) })),

@@ -13,7 +13,6 @@ import {
   decidirEstadoPago,
   detalleNoConfirmado,
   evaluarPago,
-  MARCA_REVISAR,
   verificarCuentaCobro,
   type OrigenConsulta,
 } from "@/lib/pagos";
@@ -164,7 +163,7 @@ export async function registrarPagoMercadoPago(
 
   const reserva = await db.reserva.findUnique({
     where: { codigo },
-    select: { id: true, codigo: true, abono: true, estado: true, notas: true, cabanaId: true, checkIn: true, checkOut: true, cabana: { select: { propiedadId: true } } },
+    select: { id: true, codigo: true, abono: true, estado: true, revisarPagoMotivo: true, cabanaId: true, checkIn: true, checkOut: true, cabana: { select: { propiedadId: true } } },
   });
   if (!reserva) return "ignorado";
 
@@ -184,7 +183,7 @@ export async function registrarPagoMercadoPago(
     // Aprobado, pero no lo cobró la cuenta que corresponde: no se aplica ni se registra como pago de la
     // reserva; queda para revisión y se avisa al superadmin (una sola vez por pago).
     const refPago = String(pago.id ?? paymentId);
-    if (await anotarRevision(reserva.id, reserva.notas, `pago ${refPago} cobrado por otra cuenta de Mercado Pago: revisar`)) {
+    if (await anotarRevision(reserva.id, reserva.revisarPagoMotivo, `pago ${refPago} cobrado por otra cuenta de Mercado Pago: revisar`)) {
       after(() => avisarRevisionASuperadmins(reserva.codigo, refPago));
     }
     return "revisar";
@@ -213,7 +212,7 @@ export async function registrarPagoMercadoPago(
 
   const decision = decidirEstadoPago({ evaluacion, refExterna, estadoReserva: reserva.estado, pagoYaAprobado: existente?.estado === "aprobado" });
   if (decision.accion === "revisar") {
-    await anotarRevision(reserva.id, reserva.notas, decision.detalle);
+    await anotarRevision(reserva.id, reserva.revisarPagoMotivo, decision.detalle);
     return "revisar";
   }
   if (decision.accion === "terminar") return decision.resultado;
@@ -234,7 +233,7 @@ export async function registrarPagoMercadoPago(
       return false;
     });
     if (bloqueada) {
-      await anotarRevision(reserva.id, reserva.notas, detalleNoConfirmado(refExterna, "bloqueo"));
+      await anotarRevision(reserva.id, reserva.revisarPagoMotivo, detalleNoConfirmado(refExterna, "bloqueo"));
       return "revisar";
     }
     // Solo aquí la reserva pasa a confirmada, así que el email sale una sola vez.
@@ -243,16 +242,21 @@ export async function registrarPagoMercadoPago(
     return "confirmada";
   } catch (e) {
     if (codigoPostgres(e) !== TRASLAPE_RESERVA) throw e;
-    await anotarRevision(reserva.id, reserva.notas, detalleNoConfirmado(refExterna, "traslape"));
+    await anotarRevision(reserva.id, reserva.revisarPagoMotivo, detalleNoConfirmado(refExterna, "traslape"));
     return "revisar";
   }
 }
 
-/** Deja la reserva para revisión. Devuelve false si ya estaba anotado (aviso repetido). */
-async function anotarRevision(reservaId: string, notas: string | null, detalle: string): Promise<boolean> {
-  const linea = `${MARCA_REVISAR} ${detalle}`;
-  if (notas?.includes(linea)) return false;
-  await db.reserva.update({ where: { id: reservaId }, data: { notas: [notas, linea].filter(Boolean).join("\n") } });
+/**
+ * Deja la reserva para revisión (columnas revisar_pago y revisar_pago_motivo, una línea por motivo;
+ * notas no se toca). Devuelve false si ese motivo ya estaba anotado (aviso repetido).
+ */
+async function anotarRevision(reservaId: string, motivos: string | null, detalle: string): Promise<boolean> {
+  if (motivos?.split("\n").includes(detalle)) return false;
+  await db.reserva.update({
+    where: { id: reservaId },
+    data: { revisarPago: true, revisarPagoMotivo: [motivos, detalle].filter(Boolean).join("\n") },
+  });
   return true;
 }
 
