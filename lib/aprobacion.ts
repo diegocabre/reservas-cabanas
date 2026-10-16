@@ -14,7 +14,7 @@
 
 import { db } from "@/lib/db";
 import { cerrojoCabana } from "@/lib/errores-db";
-import { expirarReservasVencidas, MARCA_PRUEBA } from "@/lib/reservas";
+import { expirarReservasVencidas } from "@/lib/reservas";
 import { formatearCLP, formatearFechaHora, formatearFechaLarga } from "@/lib/formato";
 import { crearLinkPagoSolicitud } from "@/lib/mercadopago";
 import {
@@ -31,6 +31,7 @@ import { comoAdmin, deSusPropiedades, idsPropiedades, type AdminSesion } from "@
 import { aFechaIso, nochesEntre } from "@/lib/precios";
 import { urlDelSitio } from "@/lib/sitio";
 import { HORAS_MAXIMAS, HORAS_MINIMAS, HORAS_RECORDATORIO, limpiarMotivoRechazo, recordarAlDueno, recordarAlHuesped } from "@/lib/solicitudes";
+import { registrar, detalleError } from "@/lib/registro";
 
 const HORA_MS = 3_600_000;
 
@@ -235,6 +236,7 @@ async function cargarDatosAviso(codigo: string, motivo: string | null = null): P
       total: true,
       abono: true,
       notas: true,
+      esPrueba: true,
       expiraEn: true,
       linkPago: true,
       linkPagoExpiraEn: true,
@@ -247,7 +249,7 @@ async function cargarDatosAviso(codigo: string, motivo: string | null = null): P
   if (!r) return null;
   const checkIn = aFechaIso(r.checkIn);
   const checkOut = aFechaIso(r.checkOut);
-  const prueba = r.notas?.startsWith(MARCA_PRUEBA) ?? false;
+  const prueba = r.esPrueba;
   const limite = r.linkPagoExpiraEn ?? r.expiraEn;
   const sitio = urlDelSitio();
   return {
@@ -261,8 +263,8 @@ async function cargarDatosAviso(codigo: string, motivo: string | null = null): P
       huespedNombre: r.huespedNombre,
       huespedEmail: r.huespedEmail,
       huespedTelefono: r.huespedTelefono,
-      // El comentario del formulario es la presentación del huésped (sin la marca de prueba).
-      mensaje: r.notas?.replace(MARCA_PRUEBA, "").trim() || null,
+      // El comentario del formulario es la presentación del huésped.
+      mensaje: r.notas?.trim() || null,
       llegada: formatearFechaLarga(checkIn),
       salida: formatearFechaLarga(checkOut),
       noches: nochesEntre(checkIn, checkOut).length,
@@ -286,14 +288,14 @@ async function registrarAviso(reservaId: string, clave: keyof typeof NOMBRE_AVIS
     if (resultado.ok) {
       await db.reserva.updateMany({ where: { id: reservaId, avisoFallido: { startsWith: nombre } }, data: { avisoFallido: null } });
     } else {
-      console.error("No se pudo enviar un aviso", nombre, reservaId, resultado.error);
+      registrar("error", "aviso_fallido", { aviso: nombre, reservaId, detalle: detalleError(resultado.error) });
       await db.reserva.update({
         where: { id: reservaId },
         data: { avisoFallido: `${nombre} (${formatearFechaHora(new Date())}): ${resultado.error}`.slice(0, 500) },
       });
     }
   } catch (e) {
-    console.error("No se pudo registrar el resultado del aviso", nombre, reservaId, e);
+    registrar("error", "aviso_registro_fallido", { aviso: nombre, reservaId, detalle: detalleError(e) });
   }
 }
 
@@ -311,7 +313,7 @@ export async function avisarHuesped(
     await registrarAviso(cargada.id, plantilla, resultado);
     return resultado;
   } catch (e) {
-    console.error("Error avisando al huésped", codigo, plantilla, e);
+    registrar("error", "aviso_huesped_error", { codigo, plantilla, detalle: detalleError(e) });
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
@@ -325,14 +327,15 @@ export async function avisarDueno(codigo: string, plantilla: PlantillaDueno): Pr
     await registrarAviso(cargada.id, `dueno_${plantilla}`, resultado);
     return resultado;
   } catch (e) {
-    console.error("Error avisando al dueño", codigo, plantilla, e);
+    registrar("error", "aviso_dueno_error", { codigo, plantilla, detalle: detalleError(e) });
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 
 /** Nueva solicitud: "recibimos tu solicitud" al huésped y aviso con el link al panel para el dueño. */
-export async function avisarSolicitudNueva(codigo: string) {
-  await Promise.all([avisarHuesped(codigo, "solicitud_recibida"), avisarDueno(codigo, "nueva_solicitud")]);
+export async function avisarSolicitudNueva(codigo: string, { huesped = true }: { huesped?: boolean } = {}) {
+  // huesped = false: la dirección superó el tope diario de correos (lib/limites.ts); el dueño igual se entera.
+  await Promise.all([huesped ? avisarHuesped(codigo, "solicitud_recibida") : null, avisarDueno(codigo, "nueva_solicitud")]);
 }
 
 // ---------------------------------------------------------------------------------------------

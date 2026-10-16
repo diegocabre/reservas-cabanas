@@ -2,12 +2,10 @@
 // defensas de lib/panel-acceso.ts: filtro por sus propiedades y RLS (comoAdmin).
 
 import { plazoVencido } from "@/lib/disponibilidad";
-import { MARCA_PRUEBA } from "@/lib/reservas";
 import { terminosBusqueda, type FiltrosReservas } from "@/lib/filtros-reservas";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { comoAdmin, deSusPropiedades, type AdminSesion } from "@/lib/panel-acceso";
 import type { ReservaPanel } from "@/lib/panel";
-import { MARCA_REVISAR } from "@/lib/pagos";
 import { aFechaIso, nochesEntre } from "@/lib/precios";
 import { SELECT_PUBLICACION } from "@/lib/publicacion";
 
@@ -26,6 +24,8 @@ const SELECT_RESERVA = {
   estado: true,
   origen: true,
   notas: true,
+  revisarPago: true,
+  revisarPagoMotivo: true,
   cabana: { select: { nombre: true, propiedadId: true } },
   pagos: { select: { monto: true, estado: true, proveedor: true } },
 } as const;
@@ -66,7 +66,7 @@ export const DIAS_RESUMEN = 30;
 /**
  * Datos del resumen del día de UNA propiedad del admin: reservas que tocan [hoy - 30, hoy + 30)
  * (saldos de estadías recientes, alojados, llegadas, salidas y ocupación), las marcadas
- * [REVISAR PAGO] de cualquier fecha y las cabañas activas. null si la propiedad no es suya.
+ * con un pago por revisar (revisar_pago) de cualquier fecha y las cabañas activas. null si la propiedad no es suya.
  */
 export async function datosResumen(admin: AdminSesion, propiedadId: string, hoy: string) {
   if (!admin.propiedades.some((p) => p.id === propiedadId)) return null;
@@ -82,7 +82,7 @@ export async function datosResumen(admin: AdminSesion, propiedadId: string, hoy:
             checkOut: { gte: d(sumarDias(hoy, -DIAS_RESUMEN)) },
             checkIn: { lt: d(sumarDias(hoy, DIAS_RESUMEN)) },
           },
-          { notas: { contains: MARCA_REVISAR } },
+          { revisarPago: true },
         ],
       },
       select: SELECT_RESERVA,
@@ -135,7 +135,7 @@ export async function datosResumen(admin: AdminSesion, propiedadId: string, hoy:
       checkIn: aFechaIso(s.checkIn),
       checkOut: aFechaIso(s.checkOut),
       personas: s.adultos + s.ninos,
-      mensaje: s.notas?.replace(MARCA_PRUEBA, "").trim() || null,
+      mensaje: s.notas?.trim() || null,
       expiraEn: s.expiraEn,
       avisoFallido: s.avisoFallido,
     })),
@@ -158,6 +158,8 @@ export function aReservaPanel(r: {
   total: number;
   estado: ReservaPanel["estado"];
   notas: string | null;
+  revisarPago: boolean;
+  revisarPagoMotivo: string | null;
   cabana: { nombre: string };
   pagos: { monto: number; estado: string }[];
 }): ReservaPanel {
@@ -173,6 +175,8 @@ export function aReservaPanel(r: {
     pagado: r.pagos.filter((p) => p.estado === "aprobado").reduce((s, p) => s + p.monto, 0),
     personas: r.adultos + r.ninos,
     notas: r.notas,
+    revisarPago: r.revisarPago,
+    revisarPagoMotivo: r.revisarPagoMotivo,
   };
 }
 
@@ -196,14 +200,14 @@ export async function buscarReservas(admin: AdminSesion, f: FiltrosReservas) {
   const where: Prisma.ReservaWhereInput = {
     AND: [
       deSusPropiedades(admin),
-      f.estado === "revisar" ? { notas: { contains: MARCA_REVISAR } } : f.estado !== "todas" ? { estado: f.estado } : {},
+      f.estado === "revisar" ? { revisarPago: true } : f.estado !== "todas" ? { estado: f.estado } : {},
       f.cabana ? { cabanaId: f.cabana } : {},
       f.desde ? { checkOut: { gt: d(f.desde) } } : {},
       f.hasta ? { checkIn: { lte: d(f.hasta) } } : {},
       busqueda
         ? {
             OR: [
-              { codigo: { contains: busqueda.codigo, mode: "insensitive" } },
+              ...busqueda.codigos.map((codigo) => ({ codigo: { contains: codigo, mode: "insensitive" as const } })),
               { huespedNombre: { contains: busqueda.texto, mode: "insensitive" } },
               { huespedEmail: { contains: busqueda.texto, mode: "insensitive" } },
             ],

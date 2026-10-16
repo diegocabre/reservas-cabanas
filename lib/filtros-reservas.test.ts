@@ -44,7 +44,8 @@ describe("leerFiltros", () => {
 
 describe("terminosBusqueda", () => {
   it("busca el texto tal cual y también normalizado como código", () => {
-    expect(terminosBusqueda("ma 7k3qx9")).toEqual({ texto: "ma 7k3qx9", codigo: "MA-7K3QX9" });
+    expect(terminosBusqueda("ma 7k3qx9")).toEqual({ texto: "ma 7k3qx9", codigos: ["MA-7K3QX9"] });
+    expect(terminosBusqueda("ma7k3qx9ab")).toEqual({ texto: "ma7k3qx9ab", codigos: ["MA-7K3QX9AB", "MA7K-3QX9AB"] });
     expect(terminosBusqueda("")).toBeNull();
   });
 });

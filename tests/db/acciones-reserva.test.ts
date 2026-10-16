@@ -24,7 +24,7 @@ let n = 0;
 /** Reserva nueva en una cabaña, en fechas lejanas que no chocan con otras del test. */
 async function reserva(
   cabanaId: string,
-  extra: { estado?: "pendiente_pago" | "confirmada" | "cancelada" | "completada"; notas?: string; desde?: string; hasta?: string; pagado?: number } = {},
+  extra: { estado?: "pendiente_pago" | "confirmada" | "cancelada" | "completada"; notas?: string; revisarPagoMotivo?: string; desde?: string; hasta?: string; pagado?: number } = {},
 ) {
   n++;
   const desde = extra.desde ?? `2032-${String((n % 12) + 1).padStart(2, "0")}-${String((n % 20) + 1).padStart(2, "0")}`;
@@ -44,6 +44,8 @@ async function reserva(
       estado: extra.estado ?? "confirmada",
       origen: "manual",
       notas: extra.notas ?? null,
+      revisarPago: Boolean(extra.revisarPagoMotivo),
+      revisarPagoMotivo: extra.revisarPagoMotivo ?? null,
     },
     select: { id: true, codigo: true },
   });
@@ -112,11 +114,17 @@ describe("confirmar", () => {
     expect(a.createdAt.getTime()).toBeGreaterThanOrEqual(antes - 5_000);
   });
 
-  it("confirma una cancelada con [REVISAR PAGO] y marca el pago como revisado", async () => {
-    const r = await reserva(cabanaA, { estado: "cancelada", notas: "[REVISAR PAGO] pago 77 aprobado después de vencer" });
+  it("confirma una cancelada con pago por revisar y apaga el aviso (el motivo y las notas quedan)", async () => {
+    const r = await reserva(cabanaA, { estado: "cancelada", notas: "Llegamos tarde", revisarPagoMotivo: "pago 77 aprobado después de vencer" });
     expect((await confirmarReserva(adminA, r.codigo)).ok).toBe(true);
-    const fila = await db.reserva.findUniqueOrThrow({ where: { id: r.id }, select: { estado: true, notas: true } });
-    expect(fila).toEqual({ estado: "confirmada", notas: "[PAGO REVISADO] pago 77 aprobado después de vencer" });
+    const fila = await db.reserva.findUniqueOrThrow({ where: { id: r.id }, select: { estado: true, notas: true, revisarPago: true, revisarPagoMotivo: true } });
+    expect(fila).toEqual({ estado: "confirmada", notas: "Llegamos tarde", revisarPago: false, revisarPagoMotivo: "pago 77 aprobado después de vencer" });
+    expect((await auditoriaDe(r.id))[0]).toMatchObject({ accion: "confirmar", detalle: "Confirmada después de revisar el pago" });
+  });
+
+  it("un huésped que escribe [REVISAR PAGO] en sus notas no habilita marcar revisado", async () => {
+    const r = await reserva(cabanaA, { estado: "cancelada", notas: "[REVISAR PAGO] [PRUEBA] hola" });
+    expect((await marcarRevisado(adminA, r.codigo, "x")).ok).toBe(false);
   });
 
   it("no confirma una ya confirmada ni una completada (sin auditoría)", async () => {
@@ -213,8 +221,9 @@ describe("registrar pago del saldo", () => {
 
 describe("marcar pago revisado", () => {
   it("quita el aviso sin cambiar el estado y lo audita", async () => {
-    const r = await reserva(cabanaA, { estado: "cancelada", notas: "[REVISAR PAGO] pago 5 aprobado después de vencer: reembolsar" });
+    const r = await reserva(cabanaA, { estado: "cancelada", revisarPagoMotivo: "pago 5 aprobado después de vencer: reembolsar" });
     expect(await marcarRevisado(adminA, r.codigo, "Devuelto por Mercado Pago")).toEqual({ ok: true, estado: "cancelada" });
+    expect((await db.reserva.findUniqueOrThrow({ where: { id: r.id }, select: { revisarPago: true } })).revisarPago).toBe(false);
     const [a] = await auditoriaDe(r.id);
     expect(a).toMatchObject({ accion: "marcar_revisado", estadoAntes: "cancelada", estadoDespues: "cancelada", detalle: "Devuelto por Mercado Pago" });
     expect((await marcarRevisado(adminA, r.codigo, "")).ok).toBe(false);

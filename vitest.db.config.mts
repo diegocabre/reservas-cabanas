@@ -10,6 +10,9 @@ export default defineConfig({
   test: {
     include: ["tests/db/**/*.test.ts"],
     setupFiles: ["dotenv/config"],
+    // Los tests anteriores al límite de pendientes reusan el mismo email y teléfono en muchas
+    // reservas; tests/db/limites.test.ts lo prueba con el valor por defecto.
+    env: { LIMITE_PENDIENTES_POR_CONTACTO: "1000" },
     testTimeout: 30_000,
     hookTimeout: 60_000,
     // Un solo archivo a la vez: comparten la base.

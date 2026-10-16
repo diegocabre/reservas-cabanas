@@ -1,7 +1,7 @@
 // Filtros de la lista de reservas del panel, leídos de la URL (?estado=&cabana=&desde=&hasta=&q=).
 // Funciones puras: cualquier valor raro de la URL se descarta, nunca llega a la consulta.
 
-import { normalizarCodigo } from "@/lib/codigo";
+import { candidatosCodigo } from "@/lib/codigo";
 
 export const ESTADOS_FILTRO = [
   "todas",
@@ -65,9 +65,9 @@ export function leerFiltros(p: Parametros, hoy: string): FiltrosReservas {
 }
 
 /** Variantes de búsqueda: el texto tal cual (nombre, email) y como código ("ma 7k3" → "MA-7K3"). */
-export function terminosBusqueda(q: string): { texto: string; codigo: string } | null {
+export function terminosBusqueda(q: string): { texto: string; codigos: string[] } | null {
   if (!q) return null;
-  return { texto: q, codigo: normalizarCodigo(q) };
+  return { texto: q, codigos: candidatosCodigo(q) };
 }
 
 /** ¿Hay algún filtro distinto del inicial? (para ofrecer "Limpiar filtros"). */

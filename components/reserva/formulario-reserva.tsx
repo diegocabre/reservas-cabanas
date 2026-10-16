@@ -2,6 +2,7 @@
 
 import { cloneElement, useActionState, useMemo, useState } from "react";
 import { crearReserva, type EstadoFormulario } from "@/app/reservar/[propiedad]/[cabana]/acciones";
+import { CamposAntiBot } from "@/components/campos-anti-bot";
 import { Calendario, type Fechas } from "@/components/reserva/calendario";
 import { formatearCLP, formatearFechaCorta } from "@/lib/formato";
 import {
@@ -46,7 +47,7 @@ function cotizar(datos: DatosCalendario, checkIn: string, checkOut: string, pers
   }
 }
 
-export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendario; modoPrueba: boolean }) {
+export function FormularioReserva({ datos, modoPrueba, marca }: { datos: DatosCalendario; modoPrueba: boolean; marca: string }) {
   const [estado, accion, enviando] = useActionState<EstadoFormulario, FormData>(crearReserva, {});
   const [fechas, setFechas] = useState<Fechas>(() => ({
     checkIn: estado.valores?.checkIn,
@@ -90,6 +91,7 @@ export function FormularioReserva({ datos, modoPrueba }: { datos: DatosCalendari
       <input type="hidden" name="cabana" value={datos.slug} />
       <input type="hidden" name="checkIn" value={fechas.checkIn ?? ""} />
       <input type="hidden" name="checkOut" value={fechas.checkOut ?? ""} />
+      <CamposAntiBot marca={marca} />
 
       <div className="md:grid md:grid-cols-[1fr_22rem] md:gap-10">
         <div>

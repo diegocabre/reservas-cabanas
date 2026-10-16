@@ -1,5 +1,6 @@
 "use client";
 
+import { CamposAntiBot } from "@/components/campos-anti-bot";
 import { useActionState } from "react";
 import { pedirLink, type EstadoLogin } from "./acciones";
 
@@ -25,6 +26,7 @@ export function FormularioLogin({ errorInicial }: { errorInicial: string | null 
 
   return (
     <form action={accion} className="grid gap-4">
+      <CamposAntiBot />
       <div>
         <label htmlFor="email" className="mb-1.5 block text-sm font-semibold">
           Tu email

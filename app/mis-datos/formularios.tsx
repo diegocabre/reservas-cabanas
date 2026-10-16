@@ -1,5 +1,6 @@
 "use client";
 
+import { CamposAntiBot } from "@/components/campos-anti-bot";
 import { useActionState } from "react";
 import { accionPedirAcceso, accionReplicar, accionSolicitar, type EstadoMisDatos } from "./acciones";
 
@@ -28,6 +29,7 @@ export function FormularioPedirAcceso() {
   const [estado, accion, enviando] = useActionState<EstadoMisDatos, FormData>(accionPedirAcceso, {});
   return (
     <form action={accion} className="grid gap-4">
+      <CamposAntiBot />
       <div>
         <label htmlFor="email" className="mb-1.5 block text-sm font-semibold">
           Email con el que reservaste
@@ -46,6 +48,7 @@ export function FormularioReplica({ token, resenaId, previa }: { token: string; 
   const [estado, accion, enviando] = useActionState<EstadoMisDatos, FormData>(accionReplicar, {});
   return (
     <form action={accion} className="mt-3 grid gap-2">
+      <CamposAntiBot />
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="resenaId" value={resenaId} />
       <label htmlFor={`replica-${resenaId}`} className="text-sm font-semibold">
@@ -64,6 +67,7 @@ export function FormularioSolicitud({ token }: { token: string }) {
   const [estado, accion, enviando] = useActionState<EstadoMisDatos, FormData>(accionSolicitar, {});
   return (
     <form action={accion} className="grid gap-4">
+      <CamposAntiBot />
       <input type="hidden" name="token" value={token} />
       <fieldset className="grid gap-2">
         <legend className="mb-1 text-sm font-semibold">¿Qué quieres solicitar?</legend>

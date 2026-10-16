@@ -72,7 +72,7 @@ Reservas Cabañas Sur le da a cada propiedad **su propia página de reservas**: 
 - **Multi-propiedad desde el inicio**, con **Row Level Security** en todas las tablas y un rol `panel_admin` que limita a cada admin a sus propiedades.
 - **Montos en pesos enteros (CLP)**, fechas de estadía como `date` y zona horaria `America/Santiago`.
 - **Tema visual por propiedad** con verificación de contraste WCAG AA.
-- **Modo prueba** (activo por defecto): avisos visibles y reservas marcadas `[PRUEBA]` mientras no haya pago real.
+- **Modo prueba** (activo por defecto): avisos visibles y reservas marcadas como prueba (`es_prueba`) mientras no haya pago real.
 - **Expiración automática** de reservas no pagadas con Vercel Cron.
 
 ## Tecnologías

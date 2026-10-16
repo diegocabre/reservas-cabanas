@@ -323,9 +323,9 @@ describe("página pública y JSON-LD", () => {
     expect(ld.aggregateRating.ratingValue).toBe(esperado);
   });
 
-  it("una reseña de una reserva de prueba ([PRUEBA]) nunca llega a la página pública", async () => {
+  it("una reseña de una reserva de prueba (es_prueba) nunca llega a la página pública", async () => {
     const res = await reserva();
-    await db.reserva.update({ where: { id: res.id }, data: { notas: "[PRUEBA] Somos dos" } });
+    await db.reserva.update({ where: { id: res.id }, data: { esPrueba: true } });
     await r.enviarResenaCabana(await invitar(res), { notas, comentario: "Reseña de prueba, no debe verse" }, res.en(1));
     await r.procesarResenas(res.en(14));
     const resena = await db.resenaCabana.findUniqueOrThrow({ where: { reservaId: res.id } });
@@ -333,6 +333,15 @@ describe("página pública y JSON-LD", () => {
     expect((await r.resenasPublicas(cabanaA)).some((x) => x.id === resena.id)).toBe(false);
     const panel = await r.datosResenasPanel(adminA, "2027-12-31");
     expect(panel.resenas.find((x) => x.id === resena.id)?.prueba).toBe(true);
+  });
+
+  it("un huésped que escribe [PRUEBA] en sus notas no esconde su reseña", async () => {
+    const res = await reserva();
+    await db.reserva.update({ where: { id: res.id }, data: { notas: "[PRUEBA] Somos dos" } });
+    await r.enviarResenaCabana(await invitar(res), { notas, comentario: "Reseña real aunque las notas digan prueba" }, res.en(1));
+    await r.procesarResenas(res.en(14));
+    const resena = await db.resenaCabana.findUniqueOrThrow({ where: { reservaId: res.id } });
+    expect((await r.resenasPublicas(cabanaA)).some((x) => x.id === resena.id)).toBe(true);
   });
 
   it("la respuesta del dueño se edita durante 14 días", async () => {

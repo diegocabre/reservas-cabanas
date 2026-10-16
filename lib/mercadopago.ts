@@ -6,9 +6,19 @@ import { reservaOcupa } from "@/lib/disponibilidad";
 import { cerrojoCabana, codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { conexionDisponible, tokenDePropiedad, tokenDeVendedor } from "@/lib/mercadopago-cuentas";
 import { elegirCredencial } from "@/lib/mercadopago-oauth";
-import { armarPreferencia, cobroDeLaCuentaEsperada, evaluarPago, MARCA_REVISAR } from "@/lib/pagos";
+import { avisarSuperadmins } from "@/lib/notificaciones";
+import {
+  armarPreferencia,
+  cobroEstricto,
+  decidirEstadoPago,
+  detalleNoConfirmado,
+  evaluarPago,
+  verificarCuentaCobro,
+  type OrigenConsulta,
+} from "@/lib/pagos";
 import { bloqueoCobro, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enModoPrueba, urlDelSitio } from "@/lib/sitio";
+import { registrar, detalleError } from "@/lib/registro";
 
 // Cada propiedad cobra con SU cuenta de Mercado Pago, conectada por el dueño (lib/mercadopago-cuentas.ts):
 // el dinero del huésped llega al dueño, nunca a Soluciones DyS. La cuenta de la plataforma
@@ -118,10 +128,10 @@ export type ResultadoRegistroPago =
  * Token con el que se consulta un pago: el del vendedor que indica el aviso (user_id), o el de la
  * propiedad de la reserva (al volver de Mercado Pago), o el de la plataforma (modo prueba).
  */
-async function tokenParaConsultar(pista: { mpUserId?: string | null; codigo?: string }): Promise<string | null> {
+async function tokenParaConsultar(pista: { mpUserId?: string | null; codigo?: string }): Promise<{ token: string; origen: OrigenConsulta } | null> {
   if (pista.mpUserId && conexionDisponible()) {
     const token = await tokenDeVendedor(pista.mpUserId);
-    if (token) return token;
+    if (token) return { token, origen: "vendedor" };
   }
   if (pista.codigo) {
     const reserva = await db.reserva.findUnique({
@@ -130,10 +140,11 @@ async function tokenParaConsultar(pista: { mpUserId?: string | null; codigo?: st
     });
     if (reserva) {
       const credencial = await credencialDePropiedad(reserva.cabana.propiedadId);
-      if (credencial.ok) return credencial.credencial.accessToken;
+      if (credencial.ok) return { token: credencial.credencial.accessToken, origen: credencial.credencial.origen };
     }
   }
-  return process.env.MERCADOPAGO_ACCESS_TOKEN ?? null;
+  const plataforma = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  return plataforma ? { token: plataforma, origen: "plataforma" } : null;
 }
 
 /**
@@ -145,23 +156,38 @@ export async function registrarPagoMercadoPago(
   paymentId: string,
   pista: { mpUserId?: string | null; codigo?: string } = {},
 ): Promise<ResultadoRegistroPago> {
-  const token = await tokenParaConsultar(pista);
-  if (!token) return "ignorado";
-  const pago = await new Payment(cliente(token)).get({ id: paymentId });
+  const consulta = await tokenParaConsultar(pista);
+  if (!consulta) return "ignorado";
+  const pago = await new Payment(cliente(consulta.token)).get({ id: paymentId });
   const codigo = pago.external_reference;
   if (!codigo) return "ignorado";
 
   const reserva = await db.reserva.findUnique({
     where: { codigo },
-    select: { id: true, codigo: true, abono: true, estado: true, notas: true, cabanaId: true, checkIn: true, checkOut: true, cabana: { select: { propiedadId: true } } },
+    select: { id: true, codigo: true, abono: true, estado: true, revisarPagoMotivo: true, cabanaId: true, checkIn: true, checkOut: true, cabana: { select: { propiedadId: true } } },
   });
   if (!reserva) return "ignorado";
 
   // El pago debe haberlo cobrado la cuenta de ESTA propiedad: un pago a otra cuenta con el código de
-  // esta reserva (por ejemplo, de otro dueño) no la confirma.
-  if (!cobroDeLaCuentaEsperada(pago.collector_id, await vendedorDePropiedad(reserva.cabana.propiedadId))) {
-    console.warn("Pago de Mercado Pago cobrado por otra cuenta", { paymentId, codigo });
-    return "ignorado";
+  // esta reserva (por ejemplo, de otro dueño) no la confirma (lib/pagos.ts → verificarCuentaCobro).
+  const cuenta = verificarCuentaCobro({
+    collectorId: pago.collector_id,
+    vendedorEsperado: await vendedorDePropiedad(reserva.cabana.propiedadId),
+    origenConsulta: consulta.origen,
+    modoPrueba: enModoPrueba(),
+    estricto: cobroEstricto(),
+    aprobado: pago.status === "approved",
+  });
+  if (cuenta !== "ok") {
+    registrar("warn", "pago_otra_cuenta", { paymentId, codigo, resultado: cuenta });
+    if (cuenta === "ignorar") return "ignorado";
+    // Aprobado, pero no lo cobró la cuenta que corresponde: no se aplica ni se registra como pago de la
+    // reserva; queda para revisión y se avisa al superadmin (una sola vez por pago).
+    const refPago = String(pago.id ?? paymentId);
+    if (await anotarRevision(reserva.id, reserva.revisarPagoMotivo, `pago ${refPago} cobrado por otra cuenta de Mercado Pago: revisar`)) {
+      after(() => avisarRevisionASuperadmins(reserva.codigo, refPago));
+    }
+    return "revisar";
   }
 
   const evaluacion = evaluarPago(pago, reserva);
@@ -185,20 +211,12 @@ export async function registrarPagoMercadoPago(
     update: datosPago,
   });
 
-  if (evaluacion.tipo === "monto_incorrecto") {
-    await anotarRevision(reserva.id, reserva.notas, `pago ${refExterna} aprobado por $${evaluacion.monto}, distinto al abono`);
+  const decision = decidirEstadoPago({ evaluacion, refExterna, estadoReserva: reserva.estado, pagoYaAprobado: existente?.estado === "aprobado" });
+  if (decision.accion === "revisar") {
+    await anotarRevision(reserva.id, reserva.revisarPagoMotivo, decision.detalle);
     return "revisar";
   }
-  if (evaluacion.estado !== "aprobado") return evaluacion.estado;
-  if (reserva.estado === "confirmada" || reserva.estado === "completada" || existente?.estado === "aprobado") {
-    return "ya_registrado";
-  }
-
-  // Una solicitud rechazada por el dueño nunca se confirma sola, aunque llegue un pago.
-  if (reserva.estado === "rechazada") {
-    await anotarRevision(reserva.id, reserva.notas, `pago ${refExterna} aprobado en una solicitud rechazada: reembolsar`);
-    return "revisar";
-  }
+  if (decision.accion === "terminar") return decision.resultado;
 
   // Pago aprobado: confirmar (también una solicitud aprobada_pendiente_pago, o una expirada si las
   // fechas siguen libres). Si la reserva se había cancelado por vencer, se intenta reactivar;
@@ -216,7 +234,7 @@ export async function registrarPagoMercadoPago(
       return false;
     });
     if (bloqueada) {
-      await anotarRevision(reserva.id, reserva.notas, `pago ${refExterna} aprobado, pero el dueño bloqueó esas fechas: revisar o reembolsar`);
+      await anotarRevision(reserva.id, reserva.revisarPagoMotivo, detalleNoConfirmado(refExterna, "bloqueo"));
       return "revisar";
     }
     // Solo aquí la reserva pasa a confirmada, así que el email sale una sola vez.
@@ -225,13 +243,38 @@ export async function registrarPagoMercadoPago(
     return "confirmada";
   } catch (e) {
     if (codigoPostgres(e) !== TRASLAPE_RESERVA) throw e;
-    await anotarRevision(reserva.id, reserva.notas, `pago ${refExterna} aprobado después de vencer y las fechas ya están tomadas: reembolsar`);
+    await anotarRevision(reserva.id, reserva.revisarPagoMotivo, detalleNoConfirmado(refExterna, "traslape"));
     return "revisar";
   }
 }
 
-async function anotarRevision(reservaId: string, notas: string | null, detalle: string) {
-  const linea = `${MARCA_REVISAR} ${detalle}`;
-  if (notas?.includes(linea)) return;
-  await db.reserva.update({ where: { id: reservaId }, data: { notas: [notas, linea].filter(Boolean).join("\n") } });
+/**
+ * Deja la reserva para revisión (columnas revisar_pago y revisar_pago_motivo, una línea por motivo;
+ * notas no se toca). Devuelve false si ese motivo ya estaba anotado (aviso repetido).
+ */
+async function anotarRevision(reservaId: string, motivos: string | null, detalle: string): Promise<boolean> {
+  if (motivos?.split("\n").includes(detalle)) return false;
+  await db.reserva.update({
+    where: { id: reservaId },
+    data: { revisarPago: true, revisarPagoMotivo: [motivos, detalle].filter(Boolean).join("\n") },
+  });
+  return true;
+}
+
+/** Correo a los superadmins por un pago aprobado que no cobró la cuenta esperada. Nunca lanza. */
+async function avisarRevisionASuperadmins(codigo: string, refPago: string) {
+  try {
+    const emails = (await db.superadmin.findMany({ select: { email: true } })).map((s) => s.email);
+    const r = await avisarSuperadmins(
+      emails,
+      `[Revisar pago] Reserva ${codigo}`,
+      [
+        `Llegó un pago aprobado de Mercado Pago (${refPago}) para la reserva ${codigo}, pero no lo cobró la cuenta que corresponde a esa propiedad.`,
+        "La reserva NO se confirmó y quedó marcada para revisión en el panel. Revisa en Mercado Pago quién lo cobró y si corresponde reembolsar.",
+      ].join("\n\n"),
+    );
+    if (!r.ok) registrar("error", "correo_superadmin_fallido", { codigo, detalle: detalleError(r.error) });
+  } catch (e) {
+    registrar("error", "correo_superadmin_fallido", { codigo, detalle: detalleError(e) });
+  }
 }

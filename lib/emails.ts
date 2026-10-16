@@ -4,9 +4,9 @@ import { ReservaApartada } from "@/emails/reserva-apartada";
 import { db } from "@/lib/db";
 import { formatearCLP, formatearFechaLarga, formatearHora } from "@/lib/formato";
 import { aFechaIso, nochesEntre, saldoReserva } from "@/lib/precios";
-import { MARCA_PRUEBA } from "@/lib/reservas";
 import { urlDelSitio } from "@/lib/sitio";
 import { enlaceWhatsapp, mensajeReserva } from "@/lib/whatsapp";
+import { registrar, detalleError } from "@/lib/registro";
 
 /** Remitente verificado en Resend (dominio reservas.solucionesdys.cl). */
 const DIRECCION_REMITENTE = process.env.EMAIL_REMITENTE ?? "reservas@reservas.solucionesdys.cl";
@@ -45,7 +45,7 @@ export async function enviarEmailReservaApartada(codigo: string): Promise<void> 
         abono: true,
         estado: true,
         expiraEn: true,
-        notas: true,
+        esPrueba: true,
         huespedNombre: true,
         huespedEmail: true,
         cabana: { select: { nombre: true, propiedad: { select: { nombre: true, email: true } } } },
@@ -55,7 +55,7 @@ export async function enviarEmailReservaApartada(codigo: string): Promise<void> 
 
     const checkIn = aFechaIso(r.checkIn);
     const checkOut = aFechaIso(r.checkOut);
-    const prueba = r.notas?.startsWith(MARCA_PRUEBA) ?? false;
+    const prueba = r.esPrueba;
     const sitio = urlDelSitio();
     const { propiedad } = r.cabana;
 
@@ -80,9 +80,9 @@ export async function enviarEmailReservaApartada(codigo: string): Promise<void> 
         prueba,
       }),
     });
-    if (error) console.error("No se pudo enviar el email de reserva apartada", r.codigo, error);
+    if (error) registrar("error", "correo_fallido", { correo: "reserva_apartada", codigo: r.codigo, detalle: detalleError(error) });
   } catch (e) {
-    console.error("Error enviando el email de reserva apartada", codigo, e);
+    registrar("error", "correo_fallido", { correo: "reserva_apartada", codigo, detalle: detalleError(e) });
   }
 }
 
@@ -94,7 +94,7 @@ export async function enviarEmailsReservaConfirmada(codigo: string): Promise<voi
   try {
     const resend = clienteResend();
     if (!resend) {
-      console.warn("RESEND_API_KEY no configurada: no se envió la confirmación de", codigo);
+      registrar("warn", "correo_sin_configurar", { correo: "confirmacion", codigo });
       return;
     }
 
@@ -108,7 +108,7 @@ export async function enviarEmailsReservaConfirmada(codigo: string): Promise<voi
         ninos: true,
         total: true,
         abono: true,
-        notas: true,
+        esPrueba: true,
         huespedNombre: true,
         huespedEmail: true,
         huespedTelefono: true,
@@ -138,7 +138,7 @@ export async function enviarEmailsReservaConfirmada(codigo: string): Promise<voi
     const checkIn = aFechaIso(r.checkIn);
     const checkOut = aFechaIso(r.checkOut);
     const nombre = r.huespedNombre.split(/\s+/)[0];
-    const prueba = r.notas?.startsWith(MARCA_PRUEBA) ?? false;
+    const prueba = r.esPrueba;
 
     const datos: DatosEmailConfirmacion = {
       codigo: r.codigo,
@@ -178,7 +178,7 @@ export async function enviarEmailsReservaConfirmada(codigo: string): Promise<voi
         subject: asuntoConfirmacion({ codigo: r.codigo, cabana: cabana.nombre, prueba }),
         react: ConfirmacionReserva(datos),
       });
-      if (error) console.error("No se pudo enviar la confirmación al huésped", r.codigo, error);
+      if (error) registrar("error", "correo_fallido", { correo: "confirmacion_huesped", codigo: r.codigo, detalle: detalleError(error) });
     }
 
     // Aviso corto al dueño, con los datos de contacto del huésped.
@@ -196,9 +196,9 @@ export async function enviarEmailsReservaConfirmada(codigo: string): Promise<voi
           datos.urlReserva,
         ].join("\n"),
       });
-      if (error) console.error("No se pudo avisar al dueño", r.codigo, error);
+      if (error) registrar("error", "correo_fallido", { correo: "confirmacion_dueno", codigo: r.codigo, detalle: detalleError(error) });
     }
   } catch (e) {
-    console.error("Error enviando los emails de la reserva", codigo, e);
+    registrar("error", "correo_fallido", { correo: "confirmacion", codigo, detalle: detalleError(e) });
   }
 }

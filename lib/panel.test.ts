@@ -135,17 +135,23 @@ describe("casos borde: reserva que cruza el cambio de mes", () => {
 });
 
 describe("porRevisarPago", () => {
-  it("encuentra las reservas con [REVISAR PAGO] en las notas, en cualquier estado", () => {
+  it("encuentra las reservas con revisar_pago, en cualquier estado", () => {
     const lista = [
-      r("MA-OK0001", "Maicolpue", "2026-11-01", "2026-11-03", { notas: "[PRUEBA] llegan tarde" }),
+      r("MA-OK0001", "Maicolpue", "2026-11-01", "2026-11-03", { notas: "llegan tarde" }),
       r("MA-REV002", "Maicolpue", "2026-11-10", "2026-11-12", {
         estado: "cancelada",
-        notas: "[REVISAR PAGO] pago 123 aprobado después de vencer y las fechas ya están tomadas: reembolsar",
+        revisarPago: true,
+        revisarPagoMotivo: "pago 123 aprobado después de vencer y las fechas ya están tomadas: reembolsar",
       }),
-      r("MA-REV001", "Maicolpue", "2026-11-05", "2026-11-06", { notas: "nota\n[REVISAR PAGO] pago 99 aprobado por $1, distinto al abono" }),
+      r("MA-REV001", "Maicolpue", "2026-11-05", "2026-11-06", { revisarPago: true, revisarPagoMotivo: "pago 99 aprobado por $1, distinto al abono" }),
       r("MA-NULL01", "Maicolpue", "2026-11-07", "2026-11-08", { notas: null }),
     ];
     expect(codigos(porRevisarPago(lista))).toEqual(["MA-REV001", "MA-REV002"]);
+  });
+
+  it("las notas no cuentan: un huésped que escribe [REVISAR PAGO] no genera un aviso", () => {
+    const lista = [r("MA-HUE001", "Maicolpue", "2026-11-01", "2026-11-03", { notas: "[REVISAR PAGO] [PRUEBA] hola" })];
+    expect(porRevisarPago(lista)).toEqual([]);
   });
 });
 

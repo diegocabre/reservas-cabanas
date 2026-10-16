@@ -295,6 +295,20 @@ export async function enviarLinkAccesoHuesped(email: string, url: string): Promi
   );
 }
 
+/**
+ * Aviso interno a los superadmins de la plataforma (Soluciones DyS), en texto plano: pagos que
+ * quedaron para revisión por no venir de la cuenta esperada. Sin datos personales del huésped. Nunca lanza.
+ */
+export async function avisarSuperadmins(emails: string[], asunto: string, texto: string): Promise<ResultadoAviso> {
+  const resend = clienteResend();
+  if (!resend) return { ok: false, error: "RESEND_API_KEY no configurada" };
+  const destinos = emails.filter(esEmailEnviable);
+  if (destinos.length === 0) return SIN_DESTINATARIO;
+  return conReintentos(() =>
+    resend.emails.send({ from: `Reservas Cabañas Sur <${DIRECCION_REMITENTE}>`, to: destinos, subject: asunto, text: texto }),
+  );
+}
+
 /** Avisa al dueño (email de la propiedad). Nunca lanza. */
 export async function notificarDueno(plantilla: PlantillaDueno, d: DatosAviso): Promise<ResultadoAviso> {
   const resend = clienteResend();

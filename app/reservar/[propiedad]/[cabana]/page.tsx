@@ -11,6 +11,7 @@ import { FormularioReserva } from "@/components/reserva/formulario-reserva";
 import { obtenerDatosReserva } from "@/lib/reservas";
 import { AvisoPrivacidadReserva } from "@/components/aviso-privacidad";
 import { resenasCabanaActivas } from "@/lib/resenas-reglas";
+import { firmarMarca } from "@/lib/anti-bot";
 
 export const metadata: Metadata = {
   title: "Reservar",
@@ -52,7 +53,7 @@ export default async function PaginaReservar({ params }: PageProps<"/reservar/[p
       ) : (
         <>
           {enModoPrueba() && <AvisoPrueba className="mb-6" />}
-          <FormularioReserva datos={datos} modoPrueba={enModoPrueba()} />
+          <FormularioReserva datos={datos} modoPrueba={enModoPrueba()} marca={firmarMarca()} />
           {resenasCabanaActivas(datos.propiedad.resenas) && <AvisoPrivacidadReserva className="mx-auto mt-6 max-w-2xl" />}
         </>
       )}

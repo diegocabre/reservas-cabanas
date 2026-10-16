@@ -16,7 +16,6 @@ import {
 } from "@/lib/panel";
 import type { PropiedadAdmin } from "@/lib/panel-acceso";
 import { DIAS_RESUMEN } from "@/lib/panel-datos";
-import { MARCA_REVISAR } from "@/lib/pagos";
 import { FilaReserva, Lista, Seccion, TarjetaLlegada, TiraOcupacion, Vacio } from "./resumen";
 import { SeccionSolicitudes, type SolicitudResumen } from "./solicitudes";
 
@@ -110,14 +109,11 @@ export function VistaResumen({
                 <p className="text-tinta-suave">
                   {conCabana(r, `llegada ${formatearFechaCorta(String(r.checkIn))}, reserva ${NOMBRE_ESTADO[r.estado].toLowerCase()}`)}
                 </p>
-                {r.notas
-                  ?.split("\n")
-                  .filter((l) => l.includes(MARCA_REVISAR))
-                  .map((l) => (
-                    <p key={l} className="mt-1 text-tinta">
-                      {l.replace(MARCA_REVISAR, "").trim()}
-                    </p>
-                  ))}
+                {r.revisarPagoMotivo?.split("\n").map((l) => (
+                  <p key={l} className="mt-1 text-tinta">
+                    {l}
+                  </p>
+                ))}
               </li>
             ))}
           </ul>

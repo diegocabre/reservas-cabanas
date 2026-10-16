@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ESTADOS_FILTRO, hayFiltros, NOMBRE_FILTRO, type FiltrosReservas } from "@/lib/filtros-reservas";
 import { formatearCLP, formatearFechaCorta } from "@/lib/formato";
 import type { ReservaPanel } from "@/lib/panel";
-import { tieneRevisarPago } from "@/lib/estados-reserva";
 import { EtiquetaEstado } from "../resumen";
 
 export type FilaLista = ReservaPanel & { vencida: boolean; origen: string };
@@ -142,7 +141,7 @@ export function VistaLista({
                     </p>
                     <p className="mt-1 flex flex-wrap items-center gap-1.5">
                       <EtiquetaEstado estado={r.estado} vencida={r.vencida} />
-                      {tieneRevisarPago(r.notas) && <EtiquetaEstado estado="revisar" />}
+                      {r.revisarPago && <EtiquetaEstado estado="revisar" />}
                       <span className="text-xs text-tinta-suave tabular-nums">{r.codigo}</span>
                     </p>
                   </div>

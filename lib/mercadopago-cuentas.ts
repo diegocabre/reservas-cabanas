@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { necesitaRenovar, urlRetorno, vencimiento } from "@/lib/mercadopago-oauth";
 import type { AdminSesion } from "@/lib/panel-acceso";
 import { urlDelSitio } from "@/lib/sitio";
+import { registrar, detalleError } from "@/lib/registro";
 
 /** Credenciales de la aplicación de Soluciones DyS en Mercado Pago Developers. */
 export function aplicacionMercadoPago(env: Record<string, string | undefined> = process.env) {
@@ -143,7 +144,7 @@ async function tokenVigente(where: { propiedadId: string } | { mpUserId: string 
       return r.access_token;
     });
   } catch (e) {
-    console.error("No se pudo renovar el token de Mercado Pago", { cuenta: cuenta.id }, e);
+    registrar("error", "mercadopago_renovacion_fallida", { cuenta: cuenta.id, detalle: detalleError(e) });
     // Si todavía no vence, se sigue usando; se reintenta la renovación en el próximo uso.
     return cuenta.expiraEn > new Date() ? descifrar(cuenta.accessTokenCifrado, clave) : null;
   }
@@ -152,6 +153,11 @@ async function tokenVigente(where: { propiedadId: string } | { mpUserId: string 
 /** Token para cobrar a nombre de una propiedad, o null si no conectó su cuenta (o venció). */
 export function tokenDePropiedad(propiedadId: string): Promise<string | null> {
   return tokenVigente({ propiedadId });
+}
+
+/** ¿Ese id de vendedor (user_id de un aviso) es una cuenta conectada guardada en la base? */
+export async function esVendedorConectado(mpUserId: string): Promise<boolean> {
+  return (await db.cuentaMercadoPago.count({ where: { mpUserId } })) > 0;
 }
 
 /** Token del vendedor que aparece en un aviso de Mercado Pago (user_id), o null. */

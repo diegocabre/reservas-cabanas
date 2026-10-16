@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 import { requerirAdmin } from "@/lib/admin";
 import { conectarCuenta } from "@/lib/mercadopago-cuentas";
 import { COOKIE_ESTADO_OAUTH, verificarEstado } from "@/lib/mercadopago-oauth";
+import { registrar, detalleError } from "@/lib/registro";
 
 /**
  * Retorno de Mercado Pago después de que el dueño autoriza (o rechaza) la conexión.
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
   try {
     resultado = await conectarCuenta(admin, propiedadId, code);
   } catch (e) {
-    console.error("No se pudo conectar la cuenta de Mercado Pago", e);
+    registrar("error", "mercadopago_conexion_fallida", { propiedadId, detalle: detalleError(e) });
     redirect("/admin/cobros?error=mercadopago");
   }
   if (resultado.ok) {
