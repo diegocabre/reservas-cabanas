@@ -1,6 +1,18 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { armarPreferencia, cobroDeLaCuentaEsperada, decidirEstadoPago, detalleNoConfirmado, evaluarPago, firmaValida } from "./pagos";
+import {
+  aceptarAviso,
+  armarPreferencia,
+  cobroDeLaCuentaEsperada,
+  cobroEstricto,
+  decidirEstadoPago,
+  detalleNoConfirmado,
+  evaluarPago,
+  firmaValida,
+  revisarFirmaAviso,
+  verificarCuentaCobro,
+  webhookEstricto,
+} from "./pagos";
 
 const datos = {
   codigo: "LL-0007",
@@ -143,5 +155,73 @@ describe("decidirEstadoPago", () => {
   it("textos de bloqueo y traslape", () => {
     expect(detalleNoConfirmado("555", "bloqueo")).toBe("pago 555 aprobado, pero el dueño bloqueó esas fechas: revisar o reembolsar");
     expect(detalleNoConfirmado("555", "traslape")).toBe("pago 555 aprobado después de vencer y las fechas ya están tomadas: reembolsar");
+  });
+});
+
+describe("interruptores", () => {
+  it("webhook estricto solo con la variable en true y fuera del modo prueba", () => {
+    expect(webhookEstricto(false, {})).toBe(false);
+    expect(webhookEstricto(false, { MERCADOPAGO_WEBHOOK_STRICT: "true" })).toBe(true);
+    expect(webhookEstricto(true, { MERCADOPAGO_WEBHOOK_STRICT: "true" })).toBe(false);
+    expect(webhookEstricto(false, { MERCADOPAGO_WEBHOOK_STRICT: "1" })).toBe(false);
+  });
+  it("cobro estricto solo con la variable en true", () => {
+    expect(cobroEstricto({})).toBe(false);
+    expect(cobroEstricto({ MERCADOPAGO_COBRO_ESTRICTO: "true" })).toBe(true);
+  });
+});
+
+describe("firma del aviso", () => {
+  const secreto = "clave-webhook";
+  const firmar = (dataId: string, requestId: string, ts: string) =>
+    `ts=${ts},v1=${createHmac("sha256", secreto).update(`id:${dataId};request-id:${requestId};ts:${ts};`).digest("hex")}`;
+
+  it("revisarFirmaAviso distingue sin secreto, sin firma, inválida y válida", () => {
+    expect(revisarFirmaAviso({ secreto: undefined, firma: "x", requestId: "r", dataId: "1" })).toBe("sin_secreto");
+    expect(revisarFirmaAviso({ secreto, firma: null, requestId: "r", dataId: "1" })).toBe("sin_firma");
+    expect(revisarFirmaAviso({ secreto, firma: "ts=1,v1=abcd", requestId: "r", dataId: "1" })).toBe("invalida");
+    expect(revisarFirmaAviso({ secreto, firma: firmar("1", "r", "9"), requestId: "r", dataId: "1" })).toBe("valida");
+  });
+
+  it.each([
+    ["valida", false, true],
+    ["valida", true, true],
+    ["sin_secreto", false, true], // como antes: sin secreto se procesa (con log)
+    ["sin_secreto", true, false],
+    ["sin_firma", false, false], // como antes: con secreto, sin firma se rechaza
+    ["sin_firma", true, false],
+    ["invalida", false, false],
+    ["invalida", true, false],
+  ] as const)("aceptarAviso(%s, estricto=%s) = %s", (firma, estricto, esperado) => {
+    expect(aceptarAviso(firma, estricto)).toBe(esperado);
+  });
+});
+
+describe("verificarCuentaCobro", () => {
+  const casos: { conectada: boolean; prueba: boolean; coincide: boolean; origen: "vendedor" | "propiedad" | "plataforma" }[] = [];
+  for (const conectada of [true, false])
+    for (const prueba of [true, false])
+      for (const coincide of [true, false])
+        for (const origen of ["vendedor", "propiedad", "plataforma"] as const) casos.push({ conectada, prueba, coincide, origen });
+
+  const llamar = (c: (typeof casos)[number], estricto: boolean, aprobado = true) =>
+    verificarCuentaCobro({
+      collectorId: c.coincide ? 111 : 222,
+      vendedorEsperado: c.conectada ? "111" : null,
+      origenConsulta: c.origen,
+      modoPrueba: c.prueba,
+      estricto,
+      aprobado,
+    });
+
+  it.each(casos)("sin modo estricto replica la regla anterior: %o", (c) => {
+    expect(llamar(c, false)).toBe(!c.conectada || c.coincide ? "ok" : "ignorar");
+  });
+
+  it.each(casos)("modo estricto: %o", (c) => {
+    const cumple = c.conectada ? c.coincide : c.origen === "plataforma" && c.prueba;
+    expect(llamar(c, true)).toBe(cumple ? "ok" : "revisar");
+    // Un pago no aprobado que no cumple no deja marca: se ignora.
+    expect(llamar(c, true, false)).toBe(cumple ? "ok" : "ignorar");
   });
 });

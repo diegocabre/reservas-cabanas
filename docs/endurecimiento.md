@@ -74,3 +74,30 @@ Tests: `lib/limites.test.ts`, `lib/anti-bot.test.ts`, `app/reservar/[propiedad]/
 Verificación (`curl -I`, build de producción local con la base local): las globales en todas las rutas; las privadas con `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `no-referrer` y `Cache-Control: no-store`; la cabaña mantiene su caché (`s-maxage=300`). En `next dev`, Next reemplaza `Cache-Control`; en producción se respeta. `/mis-datos` (estática) deja de guardarse en la CDN: es una página liviana.
 
 Pendiente manual: probar en preview un pago completo con Mercado Pago (modo prueba) con estas cabeceras.
+
+## Fase 4: pagos y webhook
+
+**Estructura (sin cambio de comportamiento):** la decisión de en qué queda la reserva se extrajo a `decidirEstadoPago` (función pura, `lib/pagos.ts`); `registrarPagoMercadoPago` quedó como la capa que consulta la API, escribe en la base y envía correos. Los 27 tests de caracterización (`lib/mercadopago.test.ts`) pasan sin modificarse, antes y después.
+
+**Webhook (`MERCADOPAGO_WEBHOOK_STRICT`, por defecto `false`):**
+
+| Firma | `false` (por defecto) | `true`, fuera del modo prueba |
+| --- | --- | --- |
+| Válida | procesa | procesa |
+| Sin `MERCADOPAGO_WEBHOOK_SECRET` | procesa + log `webhook_firma_invalida` (`motivo: sin_secreto`) | 401 |
+| Con secreto, sin firma o inválida | 401 + log (igual que antes) | 401 + log |
+| `user_id` que no es una cuenta conectada guardada | igual que antes (se consulta con el token de la plataforma) | 200 ignorado + log `webhook_vendedor_desconocido` |
+
+Decisión: el prompt pedía que con `false` "si la firma no valida, registra un log y procesa igual que hoy". Hoy, con el secreto configurado, una firma inválida ya se rechaza con 401; se mantuvo así (lo más seguro y lo que el código hace hoy). Solo el caso "sin secreto" se procesa con log. La comparación de firma sigue en tiempo constante (`firmaValida`). La validación del `user_id` quedó dentro del modo estricto: en modo prueba los avisos de la cuenta de la plataforma traen el `user_id` de la plataforma, que no está en `cuenta_mercadopago`, y se habrían ignorado.
+
+**Cuenta que cobra (`MERCADOPAGO_COBRO_ESTRICTO`, por defecto `false`):**
+
+¿Puede una propiedad cobrar sin cuenta conectada fuera del modo prueba? Revisando el código: no se puede **crear** un cobro (`elegirCredencial` no entrega credencial sin cuenta fuera del modo prueba; `bloqueoReserva` rechaza la reserva web; las solicitudes aprobadas crean su link con la misma `crearPreferencia`). Pero sí puede **llegar** un pago aprobado a una propiedad sin cuenta: (a) un link de pago de una solicitud creado cuando la cuenta estaba conectada y pagado después de que el dueño la desconectó; (b) un pago armado a mano con `external_reference` igual al código, cobrado por otra cuenta conectada (otro dueño) y avisado con su `user_id`. Con la regla anterior (`cobroDeLaCuentaEsperada` devuelve `true` sin cuenta) esos pagos confirman la reserva. Para revisar producción (solo lectura): `select p.slug, c.mp_user_id from propiedad p left join cuenta_mercadopago c on c.propiedad_id = p.id;`.
+
+Regla nueva (`verificarCuentaCobro`, con `true`): con cuenta conectada, el `collector_id` debe ser esa cuenta; sin cuenta conectada, solo un pago consultado con el token de la plataforma y solo en modo prueba. Un pago **aprobado** que no cumple **no se descarta**: no se registra como pago de la reserva ni la confirma, queda `[REVISAR PAGO] pago N cobrado por otra cuenta de Mercado Pago: revisar` y se envía un correo a los superadmins (tabla `superadmin`), una sola vez por pago. Un pago no aprobado que no cumple se ignora. Con `false` todo sigue como antes. Decisión: "cobro de la cuenta de la plataforma" se comprueba como "el pago se pudo consultar con el token de la plataforma" (la API solo devuelve pagos de esa cuenta); no se agregó una variable con el id de la plataforma.
+
+**Idempotencia:** el mismo aviso dos veces no duplica el pago (upsert por `proveedor` + `ref_externa`), no cambia de nuevo el estado ni reenvía el correo de confirmación (test "el mismo aviso dos veces" en `lib/mercadopago.test.ts`); en el modo estricto, la marca de revisión y el correo al superadmin tampoco se repiten (`lib/mercadopago-cobro.test.ts`).
+
+Tests: `lib/pagos.test.ts` (matriz completa: cuenta conectada o no × modo prueba o no × cuenta que coincide o no × origen de la consulta × interruptor), `app/api/webhooks/mercadopago/route.test.ts` (los dos modos), `lib/mercadopago-cobro.test.ts`.
+
+Logs estructurados nuevos (JSON, sin tokens ni datos personales): `webhook_firma_invalida`, `webhook_vendedor_desconocido`, `webhook_pago`, `pago_otra_cuenta`, `correo_superadmin_fallido`.

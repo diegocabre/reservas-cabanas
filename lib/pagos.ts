@@ -59,6 +59,65 @@ export function cobroDeLaCuentaEsperada(collectorId: number | string | undefined
   return collectorId !== undefined && String(collectorId) === esperado;
 }
 
+type Env = Record<string, string | undefined>;
+
+/**
+ * Interruptores de despliegue gradual (por defecto, apagados = comportamiento anterior):
+ * - MERCADOPAGO_WEBHOOK_STRICT=true, fuera del modo prueba: el webhook rechaza avisos sin secreto
+ *   configurado o sin firma válida, e ignora avisos de un vendedor (user_id) que no es una cuenta conectada.
+ * - MERCADOPAGO_COBRO_ESTRICTO=true (también en modo prueba, para probarla en preview): regla
+ *   explícita de la cuenta que cobra (verificarCuentaCobro).
+ */
+export const webhookEstricto = (modoPrueba: boolean, env: Env = process.env) => !modoPrueba && env.MERCADOPAGO_WEBHOOK_STRICT === "true";
+export const cobroEstricto = (env: Env = process.env) => env.MERCADOPAGO_COBRO_ESTRICTO === "true";
+
+export type FirmaAviso = "valida" | "sin_secreto" | "sin_firma" | "invalida";
+
+/** Estado de la firma de un aviso: sin secreto configurado, sin cabecera, inválida o válida. */
+export function revisarFirmaAviso(p: { secreto: string | undefined; firma: string | null; requestId: string | null; dataId: string }): FirmaAviso {
+  if (!p.secreto) return "sin_secreto";
+  if (!p.firma) return "sin_firma";
+  return firmaValida({ secreto: p.secreto, firma: p.firma, requestId: p.requestId, dataId: p.dataId }) ? "valida" : "invalida";
+}
+
+/**
+ * ¿Se procesa el aviso? Con secreto configurado, una firma ausente o inválida siempre se rechaza
+ * (como siempre). Sin secreto se procesa, salvo en modo estricto. Igual se consulta el pago a la API.
+ */
+export function aceptarAviso(firma: FirmaAviso, estricto: boolean): boolean {
+  if (firma === "valida") return true;
+  if (firma === "sin_secreto") return !estricto;
+  return false;
+}
+
+/** Con qué token se consultó el pago a la API de Mercado Pago. */
+export type OrigenConsulta = "vendedor" | "propiedad" | "plataforma";
+
+/**
+ * ¿El pago lo cobró la cuenta que corresponde a la reserva?
+ * - "ok": se aplica. "ignorar": no es de esta reserva (sin rastro). "revisar": un pago aprobado que no
+ *   cumple la regla: queda [REVISAR PAGO] y se avisa al superadmin, nunca se descarta en silencio.
+ * Sin modo estricto: la regla anterior (cobroDeLaCuentaEsperada). Con modo estricto: con cuenta
+ * conectada, debe cobrarla esa cuenta; sin cuenta conectada, solo la cuenta de la plataforma (el pago
+ * se consultó con su token) y solo en modo prueba.
+ */
+export function verificarCuentaCobro(p: {
+  collectorId: number | string | undefined;
+  vendedorEsperado: string | null;
+  origenConsulta: OrigenConsulta;
+  modoPrueba: boolean;
+  estricto: boolean;
+  aprobado: boolean;
+}): "ok" | "ignorar" | "revisar" {
+  if (!p.estricto) return cobroDeLaCuentaEsperada(p.collectorId, p.vendedorEsperado) ? "ok" : "ignorar";
+  const cumple =
+    p.vendedorEsperado !== null
+      ? cobroDeLaCuentaEsperada(p.collectorId, p.vendedorEsperado)
+      : p.origenConsulta === "plataforma" && p.modoPrueba;
+  if (cumple) return "ok";
+  return p.aprobado ? "revisar" : "ignorar";
+}
+
 /** Marca en `notas` de una reserva con un pago que el dueño debe revisar (monto distinto, fechas tomadas). */
 export const MARCA_REVISAR = "[REVISAR PAGO]";
 

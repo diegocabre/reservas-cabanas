@@ -154,6 +154,11 @@ export function tokenDePropiedad(propiedadId: string): Promise<string | null> {
   return tokenVigente({ propiedadId });
 }
 
+/** ¿Ese id de vendedor (user_id de un aviso) es una cuenta conectada guardada en la base? */
+export async function esVendedorConectado(mpUserId: string): Promise<boolean> {
+  return (await db.cuentaMercadoPago.count({ where: { mpUserId } })) > 0;
+}
+
 /** Token del vendedor que aparece en un aviso de Mercado Pago (user_id), o null. */
 export function tokenDeVendedor(mpUserId: string): Promise<string | null> {
   return tokenVigente({ mpUserId });
