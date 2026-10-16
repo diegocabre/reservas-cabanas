@@ -6,7 +6,7 @@ import { reservaOcupa } from "@/lib/disponibilidad";
 import { cerrojoCabana, codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { conexionDisponible, tokenDePropiedad, tokenDeVendedor } from "@/lib/mercadopago-cuentas";
 import { elegirCredencial } from "@/lib/mercadopago-oauth";
-import { armarPreferencia, cobroDeLaCuentaEsperada, evaluarPago, MARCA_REVISAR } from "@/lib/pagos";
+import { armarPreferencia, cobroDeLaCuentaEsperada, decidirEstadoPago, detalleNoConfirmado, evaluarPago, MARCA_REVISAR } from "@/lib/pagos";
 import { bloqueoCobro, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enModoPrueba, urlDelSitio } from "@/lib/sitio";
 
@@ -185,20 +185,12 @@ export async function registrarPagoMercadoPago(
     update: datosPago,
   });
 
-  if (evaluacion.tipo === "monto_incorrecto") {
-    await anotarRevision(reserva.id, reserva.notas, `pago ${refExterna} aprobado por $${evaluacion.monto}, distinto al abono`);
+  const decision = decidirEstadoPago({ evaluacion, refExterna, estadoReserva: reserva.estado, pagoYaAprobado: existente?.estado === "aprobado" });
+  if (decision.accion === "revisar") {
+    await anotarRevision(reserva.id, reserva.notas, decision.detalle);
     return "revisar";
   }
-  if (evaluacion.estado !== "aprobado") return evaluacion.estado;
-  if (reserva.estado === "confirmada" || reserva.estado === "completada" || existente?.estado === "aprobado") {
-    return "ya_registrado";
-  }
-
-  // Una solicitud rechazada por el dueño nunca se confirma sola, aunque llegue un pago.
-  if (reserva.estado === "rechazada") {
-    await anotarRevision(reserva.id, reserva.notas, `pago ${refExterna} aprobado en una solicitud rechazada: reembolsar`);
-    return "revisar";
-  }
+  if (decision.accion === "terminar") return decision.resultado;
 
   // Pago aprobado: confirmar (también una solicitud aprobada_pendiente_pago, o una expirada si las
   // fechas siguen libres). Si la reserva se había cancelado por vencer, se intenta reactivar;
@@ -216,7 +208,7 @@ export async function registrarPagoMercadoPago(
       return false;
     });
     if (bloqueada) {
-      await anotarRevision(reserva.id, reserva.notas, `pago ${refExterna} aprobado, pero el dueño bloqueó esas fechas: revisar o reembolsar`);
+      await anotarRevision(reserva.id, reserva.notas, detalleNoConfirmado(refExterna, "bloqueo"));
       return "revisar";
     }
     // Solo aquí la reserva pasa a confirmada, así que el email sale una sola vez.
@@ -225,7 +217,7 @@ export async function registrarPagoMercadoPago(
     return "confirmada";
   } catch (e) {
     if (codigoPostgres(e) !== TRASLAPE_RESERVA) throw e;
-    await anotarRevision(reserva.id, reserva.notas, `pago ${refExterna} aprobado después de vencer y las fechas ya están tomadas: reembolsar`);
+    await anotarRevision(reserva.id, reserva.notas, detalleNoConfirmado(refExterna, "traslape"));
     return "revisar";
   }
 }

@@ -91,6 +91,43 @@ export function evaluarPago(
   return { tipo: "valido", estado: "rechazado", monto };
 }
 
+/** Qué hacer con un pago ya evaluado, según la reserva y lo que ya estaba registrado. */
+export type DecisionPago =
+  | { accion: "revisar"; detalle: string } // queda [REVISAR PAGO] en la reserva; resultado "revisar"
+  | { accion: "terminar"; resultado: "pendiente" | "rechazado" | "ya_registrado" }
+  | { accion: "confirmar" }; // intentar confirmar (puede terminar en revisión por bloqueo o traslape)
+
+/**
+ * Decide en qué queda la reserva con un pago de esta reserva (evaluacion distinta de "ajeno").
+ * Función pura: registrarPagoMercadoPago (lib/mercadopago.ts) solo ejecuta lo que se decide aquí.
+ */
+export function decidirEstadoPago(p: {
+  evaluacion: Exclude<EvaluacionPago, { tipo: "ajeno" }>;
+  refExterna: string;
+  estadoReserva: string;
+  pagoYaAprobado: boolean;
+}): DecisionPago {
+  const { evaluacion, refExterna } = p;
+  if (evaluacion.tipo === "monto_incorrecto") {
+    return { accion: "revisar", detalle: `pago ${refExterna} aprobado por $${evaluacion.monto}, distinto al abono` };
+  }
+  if (evaluacion.estado !== "aprobado") return { accion: "terminar", resultado: evaluacion.estado };
+  if (p.estadoReserva === "confirmada" || p.estadoReserva === "completada" || p.pagoYaAprobado) {
+    return { accion: "terminar", resultado: "ya_registrado" };
+  }
+  // Una solicitud rechazada por el dueño nunca se confirma sola, aunque llegue un pago.
+  if (p.estadoReserva === "rechazada") {
+    return { accion: "revisar", detalle: `pago ${refExterna} aprobado en una solicitud rechazada: reembolsar` };
+  }
+  return { accion: "confirmar" };
+}
+
+/** Motivo de revisión cuando no se pudo confirmar (decidido al intentar confirmar, dentro del cerrojo). */
+export const detalleNoConfirmado = (refExterna: string, motivo: "bloqueo" | "traslape") =>
+  motivo === "bloqueo"
+    ? `pago ${refExterna} aprobado, pero el dueño bloqueó esas fechas: revisar o reembolsar`
+    : `pago ${refExterna} aprobado después de vencer y las fechas ya están tomadas: reembolsar`;
+
 /**
  * Valida la firma de un aviso de Mercado Pago (header x-signature: "ts=...,v1=...").
  * Plantilla firmada: "id:<data.id>;request-id:<x-request-id>;ts:<ts>;" con HMAC-SHA256 y la

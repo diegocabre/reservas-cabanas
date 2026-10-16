@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { armarPreferencia, cobroDeLaCuentaEsperada, evaluarPago, firmaValida } from "./pagos";
+import { armarPreferencia, cobroDeLaCuentaEsperada, decidirEstadoPago, detalleNoConfirmado, evaluarPago, firmaValida } from "./pagos";
 
 const datos = {
   codigo: "LL-0007",
@@ -102,5 +102,46 @@ describe("cobroDeLaCuentaEsperada", () => {
 
   it("sin cuenta conectada (cuenta de la plataforma, modo prueba) no hay vendedor que comparar", () => {
     expect(cobroDeLaCuentaEsperada(999999, null)).toBe(true);
+  });
+});
+
+describe("decidirEstadoPago", () => {
+  const aprobado = { tipo: "valido", estado: "aprobado", monto: 90_000 } as const;
+  const base = { evaluacion: aprobado, refExterna: "555", estadoReserva: "pendiente_pago", pagoYaAprobado: false };
+
+  it("pago aprobado de una reserva por pagar: confirmar", () => {
+    for (const estadoReserva of ["pendiente_pago", "cancelada", "expirada", "aprobada_pendiente_pago", "pendiente_aprobacion"]) {
+      expect(decidirEstadoPago({ ...base, estadoReserva })).toEqual({ accion: "confirmar" });
+    }
+  });
+
+  it("monto incorrecto: revisión con el monto pagado", () => {
+    expect(decidirEstadoPago({ ...base, evaluacion: { tipo: "monto_incorrecto", monto: 1_000 } })).toEqual({
+      accion: "revisar",
+      detalle: "pago 555 aprobado por $1000, distinto al abono",
+    });
+  });
+
+  it("pendiente o rechazado: termina con ese resultado, sin tocar la reserva", () => {
+    expect(decidirEstadoPago({ ...base, evaluacion: { tipo: "valido", estado: "pendiente", monto: 0 } })).toEqual({ accion: "terminar", resultado: "pendiente" });
+    expect(decidirEstadoPago({ ...base, evaluacion: { tipo: "valido", estado: "rechazado", monto: 0 } })).toEqual({ accion: "terminar", resultado: "rechazado" });
+  });
+
+  it("ya confirmada, completada o pago ya aprobado antes: ya_registrado", () => {
+    expect(decidirEstadoPago({ ...base, estadoReserva: "confirmada" })).toEqual({ accion: "terminar", resultado: "ya_registrado" });
+    expect(decidirEstadoPago({ ...base, estadoReserva: "completada" })).toEqual({ accion: "terminar", resultado: "ya_registrado" });
+    expect(decidirEstadoPago({ ...base, pagoYaAprobado: true })).toEqual({ accion: "terminar", resultado: "ya_registrado" });
+  });
+
+  it("solicitud rechazada: revisión para reembolsar", () => {
+    expect(decidirEstadoPago({ ...base, estadoReserva: "rechazada" })).toEqual({
+      accion: "revisar",
+      detalle: "pago 555 aprobado en una solicitud rechazada: reembolsar",
+    });
+  });
+
+  it("textos de bloqueo y traslape", () => {
+    expect(detalleNoConfirmado("555", "bloqueo")).toBe("pago 555 aprobado, pero el dueño bloqueó esas fechas: revisar o reembolsar");
+    expect(detalleNoConfirmado("555", "traslape")).toBe("pago 555 aprobado después de vencer y las fechas ya están tomadas: reembolsar");
   });
 });
