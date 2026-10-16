@@ -36,7 +36,6 @@ import {
   tocaRecordatorio,
   type Calificacion,
   type MotivoReporte,
-  type ResenaPublica,
 } from "@/lib/resenas-reglas";
 import { enlaceWhatsapp } from "@/lib/whatsapp";
 import {
@@ -66,48 +65,7 @@ export {
   solicitarPrivacidad,
 } from "@/lib/resenas/derechos-huesped";
 export { type Invitacion, abrirInvitacion, validarResenaCabana, enviarResenaCabana } from "@/lib/resenas/tokens";
-
-// ---------------------------------------------------------------------------------------------
-// Página pública de la cabaña
-// ---------------------------------------------------------------------------------------------
-
-/** Máximo de reseñas que trae la página de la cabaña. */
-export const MAXIMO_RESENAS_PUBLICAS = 100;
-
-/**
- * Reseñas PUBLICADAS de una cabaña, sin datos personales (solo nombre de pila). Lo único que lee la
- * parte pública: ni retenidas, ni ocultas, ni de reservas de prueba (es_prueba: nunca llegan a la
- * página ni al JSON-LD). shortcut: tope de 100, paginar en la base si alguna cabaña lo pasa.
- */
-export async function resenasPublicas(cabanaId: string): Promise<ResenaPublica[]> {
-  const filas = await db.resenaCabana.findMany({
-    where: {
-      cabanaId,
-      estado: "publicada",
-      reserva: { esPrueba: false },
-    },
-    select: {
-      id: true,
-      nombrePublico: true,
-      comentario: true,
-      publicadaEn: true,
-      limpieza: true,
-      ubicacion: true,
-      comunicacion: true,
-      veracidad: true,
-      calidadPrecio: true,
-      respuesta: { select: { texto: true } },
-    },
-    orderBy: { publicadaEn: "desc" },
-    take: MAXIMO_RESENAS_PUBLICAS,
-  });
-  return filas.map(({ nombrePublico: nombre, respuesta, publicadaEn, ...r }) => ({
-    ...r,
-    nombre,
-    publicadaEn: publicadaEn ?? new Date(0),
-    respuesta: respuesta?.texto ?? null,
-  }));
-}
+export { MAXIMO_RESENAS_PUBLICAS, resenasPublicas } from "@/lib/resenas/publica";
 
 // ---------------------------------------------------------------------------------------------
 // Dueño: reseñas de sus cabañas (respuesta, reporte, pedir por WhatsApp)
