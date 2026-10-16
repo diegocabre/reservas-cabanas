@@ -18,3 +18,46 @@ Detalle de `npm audit` (dependencias de producción: `next`, `prisma`, `@prisma/
 - El resto son las mismas, contadas también vía `eslint-config-next`.
 
 Red de seguridad antes de tocar pagos: `lib/mercadopago.test.ts`, 27 tests de caracterización de `registrarPagoMercadoPago` (confirmada, rechazada, bloqueada, traslape, pago duplicado, monto o moneda incorrectos, cuenta distinta, propiedad sin cuenta, modo prueba, pendiente/rechazado, error de base, aviso repetido). Simulan la API de Mercado Pago, la base y los correos; ningún cobro real. Pasan contra el código sin modificar.
+
+## Fase 1: dependencias
+
+- `next` 16.3.6 → **16.3.8**, no 16.4.2: 16.3.8 (30 sep 2026) es el parche de seguridad de la misma versión menor y corrige todas las alertas de `npm audit` sobre Next (notas de la versión: solo correcciones de seguridad). 16.4.2 salió el mismo 15 de octubre y es una versión menor nueva: no hacía falta.
+- `prisma`, `@prisma/client` y `@prisma/adapter-pg` 7.10.0 → **7.10.1** (los tres juntos). Solo sube `mysql2` (3.24.4) y `deepmerge-ts` (8.0.2); no tiene notas de versión en GitHub. Se publicó el 15 de octubre: es un parche de dependencias, pero es nuevo; si algo raro aparece en preview, volver a 7.10.0 (`git revert` del commit).
+- **Lockfile:** `npm install` (npm 11.6) borraba del `package-lock.json` los binarios opcionales de otras plataformas (rolldown, lightningcss; npm/cli#4828), lo que rompería el build en Vercel (Linux). Se editó el lockfile solo en las entradas de los paquetes actualizados y se verificó con `npm ci`.
+- `images.remotePatterns`: ya estaba restringido a `https://images.unsplash.com/photo-*`, que usan las fotos de las cabañas demo del seed. Se deja igual.
+- Páginas con `revalidate`/`generateStaticParams` (`/`, `/[propiedad]`, `/[propiedad]/[cabana]`): el build las genera igual que antes.
+- `npm run verify` = tests + lint + build + `npm audit --omit=dev`. Producción: 0 vulnerabilidades.
+- Pospuesto: `braces` (alta, vía `@next/eslint-plugin-next`, solo desarrollo, sin versión corregida publicada). No llega a producción. Revisar el 1 de noviembre de 2026.
+
+## Fase 2: abuso en rutas públicas
+
+Tabla `intentos_publicos` (migración `20261017120000_intentos_publicos`, reversa `prisma/reversas/intentos_publicos.down.sql`, probada en local): acción, clave y fecha. La clave es un HMAC-SHA256 con `LIMITES_SECRETO` de la IP, el email, el teléfono, el código o el token: nunca en claro. El cron `expirar-reservas` (cada 30 min) borra los de más de 48 horas.
+
+**IP real** (`ipDeLaSolicitud`): `x-vercel-forwarded-for` (lo pone Vercel; el cliente no puede falsearlo), luego el primer valor de `x-forwarded-for`, luego `x-real-ip`; sin ninguno (local), `"desconocida"`.
+
+**Si la base falla o la tabla no existe** (código desplegado antes que la migración), los límites dejan pasar y registran `limites_error`: nunca bloquean a un huésped por un error nuestro.
+
+| Dónde | Límite (por defecto) | Al superarlo |
+| --- | --- | --- |
+| Reservar (`crearReserva`) | señuelo + marca firmada (mín. 3 s, máx. 24 h); 10 reservas por IP por hora (solo cuentan las que pasan la validación); 2 pendientes por email y 2 por teléfono en la misma cabaña; máx. 30 noches | mensaje amable; lo escrito se conserva |
+| Correos de acciones públicas (reserva apartada, solicitud recibida, link de "Mis datos") | 3 por destinatario por día | no se envía ese correo (la reserva igual se crea; el dueño igual recibe el aviso de solicitud). Log `correo_sobre_tope` |
+| `/mi-reserva` | señuelo; 30 búsquedas por IP por hora; 10 búsquedas fallidas por código por hora | mensaje amable; un bot recibe "no encontramos" |
+| `/reserva/[codigo]` | 20 "no encontradas" por IP por hora; 30 verificaciones de `payment_id` por IP por hora; 30 clics en "Pagar" por IP por hora | página no encontrada; la verificación la sigue haciendo el webhook; error de pago genérico |
+| Reseña (`/resena/[token]`) | señuelo; 30 envíos por IP y por token por hora | mensaje amable |
+| `/mis-datos` | señuelo; 10 pedidos de link por IP por hora (y el mínimo existente de 10 min por huésped); 30 réplicas o solicitudes por IP y por token por hora | mensaje amable; un bot recibe la respuesta de siempre sin envío |
+| Login del panel | señuelo; 10 pedidos de link por IP por hora (además del límite de Supabase) | mensaje amable |
+
+No se limitó el reporte de reseñas: es una acción del panel, con sesión de admin.
+
+**Retención de fechas (revisado, sin cambios):** una `pendiente_pago` retiene 30 minutos; una solicitud, las horas que configuró el dueño (`horas_respuesta_aprobacion`), y una aprobada, `horas_para_pagar`. Al vencer dejan de ocupar aunque el cron no corra (la disponibilidad las ignora y `crearReservaWeb` las expira antes de insertar). El cron es idempotente: `expirarReservasVencidas` solo cambia filas vencidas en estado pendiente, y cada aviso se marca en su columna solo si estaba en null.
+
+Tests: `lib/limites.test.ts`, `lib/anti-bot.test.ts`, `app/reservar/[propiedad]/[cabana]/acciones.test.ts` (huésped legítimo, aprobación encendida y apagada, tope de correos, bot, límite por IP) y `tests/db/limites.test.ts` (contra la base local: pendientes por email y teléfono, vencidas y confirmadas no cuentan, noches máximas, ventana y limpieza). En el navegador (local, cabaña demo, escritorio y móvil): una reserva normal llega a la confirmación; con el señuelo lleno aparece el mensaje genérico y lo escrito se conserva.
+
+### Regla de rate limit en el firewall de Vercel (segunda capa, a mano)
+
+1. Vercel → proyecto → **Firewall** → **Configure** → **New Rule**.
+2. Nombre: `Límite rutas públicas`.
+3. Condición **If**: `Request Path` **starts with** `/reservar/` · **OR** · `Request Path` **equals** `/mi-reserva` · **OR** · `Request Path` **starts with** `/reserva/` · **OR** · `Request Path` **starts with** `/resena/` · **OR** · `Request Path` **starts with** `/mis-datos` · **OR** · `Request Path` **equals** `/admin/login`. Agregar `Method` **equals** `POST` para no contar las visitas normales a las páginas (las Server Actions son POST a la misma ruta).
+4. **Then**: **Rate Limit**, algoritmo *Fixed Window*, **60 segundos**, **20 solicitudes**, clave **IP**. Acción al superar: **Deny** (429) o **Challenge**.
+5. Guardar, dejar en **Log** un par de días para ver que ningún huésped real aparece, y después **Publish**.
+6. No incluir `/api/webhooks/mercadopago` ni `/api/cron/*`: Mercado Pago y Vercel Cron llaman desde IPs compartidas.

@@ -1,5 +1,6 @@
 "use client";
 
+import { CamposAntiBot } from "@/components/campos-anti-bot";
 import { useActionState } from "react";
 import { buscarReserva, type EstadoBusqueda } from "./acciones";
 
@@ -11,6 +12,7 @@ export function FormularioBusqueda() {
 
   return (
     <form action={accion} className="grid gap-4">
+      <CamposAntiBot />
       <div>
         <label htmlFor="codigo" className="mb-1.5 block text-sm font-semibold">
           Código de reserva

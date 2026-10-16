@@ -1,6 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { z } from "zod";
+import { verificarAntiBot } from "@/lib/anti-bot";
+import { claveHash, consumirIntento, ipDeLaSolicitud, limites, MENSAJE_LIMITE } from "@/lib/limites";
 import { clienteSupabase } from "@/lib/supabase/servidor";
 import { urlDelSitio } from "@/lib/sitio";
 
@@ -19,6 +22,12 @@ export async function pedirLink(_previo: EstadoLogin, formData: FormData): Promi
   const email = String(formData.get("email") ?? "");
   const r = esquema.safeParse({ email });
   if (!r.success) return { email, error: r.error.issues[0].message };
+  // Un bot recibe la misma respuesta que todos, sin que se envíe nada.
+  if (!verificarAntiBot(formData, { exigirMarca: false }).ok) return { enviadoA: r.data.email };
+  if (!(await consumirIntento("pedir_link", claveHash("ip", ipDeLaSolicitud(await headers())), limites().linksPorIpHora, 60))) {
+    console.warn(JSON.stringify({ evento: "limite_superado", accion: "pedir_link_panel" }));
+    return { email, error: MENSAJE_LIMITE };
+  }
 
   const supabase = await clienteSupabase();
   const { error } = await supabase.auth.signInWithOtp({

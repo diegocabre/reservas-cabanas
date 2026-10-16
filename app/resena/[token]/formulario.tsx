@@ -1,5 +1,6 @@
 "use client";
 
+import { CamposAntiBot } from "@/components/campos-anti-bot";
 import { useActionState, useState } from "react";
 import { CATEGORIAS, LARGO_COMENTARIO, type ClaveCategoria, type Notas } from "@/lib/resenas-reglas";
 import { accionEnviarResena, type EstadoResena } from "./acciones";
@@ -60,6 +61,7 @@ export function FormularioResena({ token, previa }: { token: string; previa: (No
 
   return (
     <form action={accion} className="grid gap-5">
+      <CamposAntiBot />
       <input type="hidden" name="token" value={token} />
       <div className="grid gap-3">
         {CATEGORIAS.map((c) => (

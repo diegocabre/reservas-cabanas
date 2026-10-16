@@ -1,11 +1,12 @@
 import { db } from "@/lib/db";
 import { MINUTOS_PARA_PAGAR, nochesOcupadas, plazoVencido, reservaOcupa, validarEstadia } from "@/lib/disponibilidad";
-import { ESTADOS_QUE_OCUPAN } from "@/lib/estados-reserva";
+import { ESTADOS_CON_PLAZO, ESTADOS_QUE_OCUPAN } from "@/lib/estados-reserva";
+import { limites } from "@/lib/limites";
 import { generarCodigoReserva } from "@/lib/codigo";
 import { cerrojoCabana, codigoPostgres, TRASLAPE_RESERVA } from "@/lib/errores-db";
 import { hoyEnChile, ocultarEmail } from "@/lib/formato";
 import { enModoPrueba } from "@/lib/sitio";
-import { aFechaIso, calcularAbono, calcularPrecio, ErrorPrecio, type TarifaPrecio } from "@/lib/precios";
+import { aFechaIso, calcularAbono, calcularPrecio, ErrorPrecio, nochesEntre, type TarifaPrecio } from "@/lib/precios";
 import { tieneCuentaConectada } from "@/lib/mercadopago-cuentas";
 import { bloqueoReserva, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enlaceWhatsapp, mensajeConsultaReserva } from "@/lib/whatsapp";
@@ -117,7 +118,11 @@ export type ResultadoReserva =
 
 const FECHAS_TOMADAS = "Alguien acaba de reservar esas fechas. Por favor elige otras.";
 
+export const MENSAJE_PENDIENTES =
+  "Ya tienes reservas pendientes en esta cabaña. Págalas o espera a que venzan antes de pedir otra; puedes verlas en Buscar mi reserva.";
+
 class FechasNoDisponibles extends Error {}
+class DemasiadasPendientes extends Error {}
 
 /**
  * Crea una reserva web: `pendiente_pago` (30 minutos para pagar), o `pendiente_aprobacion` si la
@@ -129,6 +134,11 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
   if (datos.checkIn < hoy) return { ok: false, error: "La fecha de llegada ya pasó. Elige otra." };
   if (datos.checkIn > sumarMeses(hoy, MESES_RESERVABLES)) {
     return { ok: false, error: `Por ahora se puede reservar hasta ${MESES_RESERVABLES} meses hacia adelante.` };
+  }
+  // Rango absurdo (un script, no un huésped): se rechaza antes de tocar la base.
+  const { maxNoches } = limites();
+  if (nochesEntre(datos.checkIn, datos.checkOut).length > maxNoches) {
+    return { ok: false, error: `Las reservas en línea son de hasta ${maxNoches} noches. Para estadías más largas, escríbele a la cabaña.` };
   }
 
   const cabana = await db.cabana.findFirst({
@@ -218,6 +228,18 @@ async function insertarReservaWeb(
       // Las reservas pendientes que ya vencieron liberan sus fechas.
       await expirarReservasVencidas(tx, ahora, cabanaId);
 
+      // Un mismo email o teléfono no puede retener fechas con más de N reservas pendientes en la
+      // cabaña (las vencidas ya se liberaron arriba): así un script no ocupa todo el calendario.
+      const { pendientesPorContacto } = limites();
+      const pendientes = (contacto: { huespedEmail: string } | { huespedTelefono: string }) =>
+        tx.reserva.count({ where: { cabanaId, estado: { in: [...ESTADOS_CON_PLAZO] }, ...contacto } });
+      if (
+        (await pendientes({ huespedEmail: datos.email })) >= pendientesPorContacto ||
+        (await pendientes({ huespedTelefono: datos.telefono })) >= pendientesPorContacto
+      ) {
+        throw new DemasiadasPendientes();
+      }
+
       // Los bloqueos no están en la restricción de la base: se revisan aquí.
       const bloqueos = await tx.bloqueo.findMany({
         where: { cabanaId, desde: { lt: d(datos.checkOut) }, hasta: { gt: d(datos.checkIn) } },
@@ -252,6 +274,10 @@ async function insertarReservaWeb(
     });
     return { ok: true, codigo, estado };
   } catch (e) {
+    if (e instanceof DemasiadasPendientes) {
+      console.warn(JSON.stringify({ evento: "limite_pendientes", cabanaId }));
+      return { ok: false, error: MENSAJE_PENDIENTES };
+    }
     if (e instanceof FechasNoDisponibles || codigoPostgres(e) === TRASLAPE_RESERVA) {
       return { ok: false, error: FECHAS_TOMADAS };
     }

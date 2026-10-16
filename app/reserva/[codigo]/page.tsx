@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { AvisoPrueba } from "@/components/aviso-prueba";
 import { IconoWhatsapp } from "@/components/iconos";
@@ -12,6 +13,7 @@ import { enModoPrueba } from "@/lib/sitio";
 import { formatearCLP, formatearFechaHora, formatearFechaLarga, formatearHora } from "@/lib/formato";
 import { nochesEntre, saldoReserva } from "@/lib/precios";
 import { puedeCobrarEnLinea, registrarPagoMercadoPago } from "@/lib/mercadopago";
+import { anotarIntento, claveHash, consumirIntento, ipDeLaSolicitud, limiteSuperado, limites } from "@/lib/limites";
 import { obtenerReservaPublica } from "@/lib/reservas";
 import { pagarAbono } from "./acciones";
 import { BotonPagar } from "./boton-pagar";
@@ -40,12 +42,24 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
   // nada (el webhook hace lo mismo; registrar dos veces no tiene efecto).
   const idPago = [consulta.payment_id, consulta.collection_id].flat().find((v) => v && /^\d+$/.test(v));
   const codigoReserva = decodeURIComponent(codigo).toUpperCase();
-  if (idPago) {
+  // Límites por IP (lib/limites.ts): quien prueba códigos al azar acumula "no encontradas" y deja de
+  // ver reservas; un huésped con su link nunca llega a ese tope.
+  const lim = limites();
+  const ip = claveHash("ip", ipDeLaSolicitud(await headers()));
+  if (await limiteSuperado("reserva_no_encontrada", ip, lim.noEncontradasPorIpHora, 60)) {
+    console.warn(JSON.stringify({ evento: "limite_superado", accion: "ver_reserva" }));
+    notFound();
+  }
+  // Cada payment_id se consulta a la API de Mercado Pago: con tope por IP. Si se supera, el webhook igual lo aplica.
+  if (idPago && (await consumirIntento("verificar_pago", ip, lim.consultasPorIpHora, 60))) {
     await registrarPagoMercadoPago(idPago, { codigo: codigoReserva }).catch((e) => console.error("No se pudo verificar el pago", e));
   }
 
   const reserva = await obtenerReservaPublica(codigoReserva);
-  if (!reserva) notFound();
+  if (!reserva) {
+    await anotarIntento("reserva_no_encontrada", ip);
+    notFound();
+  }
   const errorPago = consulta.error === "pago";
   const pagoRechazado = consulta.status === "rejected" || consulta.collection_status === "rejected";
 

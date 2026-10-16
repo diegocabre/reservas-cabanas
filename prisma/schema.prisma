@@ -594,3 +594,16 @@ model Superadmin {
 
   @@map("superadmin")
 }
+
+// Intentos en rutas públicas, para limitar abusos (lib/limites.ts). La clave es un HMAC con sal de la
+// IP, el email o el teléfono: nunca se guardan en claro (Ley 21.719). El cron borra los antiguos.
+model IntentoPublico {
+  id       BigInt   @id @default(autoincrement())
+  accion   String
+  clave    String
+  creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@index([accion, clave, creadoEn])
+  @@index([creadoEn])
+  @@map("intentos_publicos")
+}

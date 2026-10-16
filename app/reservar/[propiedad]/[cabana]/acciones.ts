@@ -1,10 +1,13 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
 import { avisarSolicitudNueva } from "@/lib/aprobacion";
+import { MENSAJE_ANTIBOT, verificarAntiBot } from "@/lib/anti-bot";
 import { enviarEmailReservaApartada } from "@/lib/emails";
+import { claveHash, consumirIntento, cupoCorreo, ipDeLaSolicitud, limites, MENSAJE_LIMITE } from "@/lib/limites";
 import { esquemaReserva } from "@/lib/reserva-esquema";
 import { crearReservaWeb } from "@/lib/reservas";
 
@@ -22,21 +25,37 @@ export async function crearReserva(_previo: EstadoFormulario, formData: FormData
     [...formData.entries()].filter(([, v]) => typeof v === "string") as [string, string][],
   );
 
+  const antiBot = verificarAntiBot(formData, { exigirMarca: true });
+  if (!antiBot.ok) {
+    console.warn(JSON.stringify({ evento: "antibot_rechazado", accion: "reservar", motivo: antiBot.motivo }));
+    return { error: MENSAJE_ANTIBOT, valores };
+  }
+
   const validado = esquemaReserva.safeParse(valores);
   if (!validado.success) {
     return { errores: z.flattenError(validado.error).fieldErrors, valores };
+  }
+
+  // Se cuenta solo lo que pasa la validación: equivocarse en un campo no gasta intentos.
+  const ip = ipDeLaSolicitud(await headers());
+  if (!(await consumirIntento("reservar", claveHash("ip", ip), limites().reservasPorIpHora, 60))) {
+    console.warn(JSON.stringify({ evento: "limite_superado", accion: "reservar" }));
+    return { error: MENSAJE_LIMITE, valores };
   }
 
   const resultado = await crearReservaWeb(validado.data);
   if (!resultado.ok) return { error: resultado.error, valores };
 
   const { codigo } = resultado;
+  const { email } = validado.data;
   if (resultado.estado === "pendiente_aprobacion") {
-    // Solicitud: "recibimos tu solicitud" al huésped y aviso al dueño con el link al panel.
-    after(() => avisarSolicitudNueva(codigo));
+    // Solicitud: "recibimos tu solicitud" al huésped (con tope diario por dirección) y aviso al dueño.
+    after(async () => avisarSolicitudNueva(codigo, { huesped: await cupoCorreo(email) }));
   } else {
-    // El link para pagar queda en el email del huésped, por si cierra la página.
-    after(() => enviarEmailReservaApartada(codigo));
+    // El link para pagar queda en el email del huésped, por si cierra la página (con tope diario por dirección).
+    after(async () => {
+      if (await cupoCorreo(email)) await enviarEmailReservaApartada(codigo);
+    });
   }
   redirect(`/reserva/${codigo}`);
 }

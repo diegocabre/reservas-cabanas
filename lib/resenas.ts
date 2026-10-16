@@ -13,6 +13,7 @@
 import { randomUUID } from "node:crypto";
 import { avisarDueno, avisarHuesped } from "@/lib/aprobacion";
 import { db } from "@/lib/db";
+import { cupoCorreo } from "@/lib/limites";
 import type { Resultado } from "@/lib/estados-reserva";
 import { formatearFechaLarga, hoyEnChile } from "@/lib/formato";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -654,6 +655,8 @@ export async function pedirAccesoHuesped(emailCrudo: string, ahora = new Date())
     data: { accesoVersion: version, accesoHash: hashToken(token), accesoExpiraEn: new Date(ahora.getTime() + HORAS_LINK_ACCESO * 3_600_000), accesoPedidoEn: ahora },
   });
   if (count === 0) return;
+  // Tope diario de correos por dirección (lib/limites.ts), además del mínimo de 10 minutos entre links.
+  if (!(await cupoCorreo(h.email, ahora))) return;
   const resultado = await enviarLinkAccesoHuesped(h.email, new URL(`/mis-datos/${token}`, urlDelSitio()).toString());
   if (!resultado.ok) console.error("No se pudo enviar el link de acceso del huésped", h.id, resultado.error);
 }

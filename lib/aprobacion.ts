@@ -331,8 +331,9 @@ export async function avisarDueno(codigo: string, plantilla: PlantillaDueno): Pr
 }
 
 /** Nueva solicitud: "recibimos tu solicitud" al huésped y aviso con el link al panel para el dueño. */
-export async function avisarSolicitudNueva(codigo: string) {
-  await Promise.all([avisarHuesped(codigo, "solicitud_recibida"), avisarDueno(codigo, "nueva_solicitud")]);
+export async function avisarSolicitudNueva(codigo: string, { huesped = true }: { huesped?: boolean } = {}) {
+  // huesped = false: la dirección superó el tope diario de correos (lib/limites.ts); el dueño igual se entera.
+  await Promise.all([huesped ? avisarHuesped(codigo, "solicitud_recibida") : null, avisarDueno(codigo, "nueva_solicitud")]);
 }
 
 // ---------------------------------------------------------------------------------------------
