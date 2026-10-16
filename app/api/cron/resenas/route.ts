@@ -1,3 +1,4 @@
+import { detalleError, registrar } from "@/lib/registro";
 import { procesarResenas } from "@/lib/resenas";
 
 /**
@@ -12,5 +13,12 @@ export async function GET(request: Request) {
     return Response.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  return Response.json(await procesarResenas());
+  try {
+    const resultado = await procesarResenas();
+    registrar("info", "cron_ejecutado", { cron: "resenas", ...resultado });
+    return Response.json(resultado);
+  } catch (e) {
+    registrar("error", "cron_fallido", { cron: "resenas", detalle: detalleError(e) });
+    return Response.json({ error: "Falló el cron" }, { status: 500 });
+  }
 }

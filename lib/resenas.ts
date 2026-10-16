@@ -59,6 +59,7 @@ import {
 } from "@/lib/resenas-reglas";
 import { urlDelSitio } from "@/lib/sitio";
 import { enlaceWhatsapp } from "@/lib/whatsapp";
+import { registrar, detalleError } from "@/lib/registro";
 
 type Tx = Prisma.TransactionClient;
 type Conexion = Tx | typeof db;
@@ -656,7 +657,7 @@ export async function pedirAccesoHuesped(emailCrudo: string, ahora = new Date())
   // Tope diario de correos por dirección (lib/limites.ts), además del mínimo de 10 minutos entre links.
   if (!(await cupoCorreo(h.email, ahora))) return;
   const resultado = await enviarLinkAccesoHuesped(h.email, new URL(`/mis-datos/${token}`, urlDelSitio()).toString());
-  if (!resultado.ok) console.error("No se pudo enviar el link de acceso del huésped", h.id, resultado.error);
+  if (!resultado.ok) registrar("error", "correo_fallido", { correo: "acceso_huesped", huespedId: h.id, detalle: detalleError(resultado.error) });
 }
 
 /** Huésped del link de acceso vigente, o null. */

@@ -6,6 +6,7 @@ import { verificarAntiBot } from "@/lib/anti-bot";
 import { claveHash, consumirIntento, ipDeLaSolicitud, limites, MENSAJE_LIMITE } from "@/lib/limites";
 import { clienteSupabase } from "@/lib/supabase/servidor";
 import { urlDelSitio } from "@/lib/sitio";
+import { registrar, detalleError } from "@/lib/registro";
 
 export type EstadoLogin = { error?: string; enviadoA?: string; email?: string };
 
@@ -25,7 +26,7 @@ export async function pedirLink(_previo: EstadoLogin, formData: FormData): Promi
   // Un bot recibe la misma respuesta que todos, sin que se envíe nada.
   if (!verificarAntiBot(formData, { exigirMarca: false }).ok) return { enviadoA: r.data.email };
   if (!(await consumirIntento("pedir_link", claveHash("ip", ipDeLaSolicitud(await headers())), limites().linksPorIpHora, 60))) {
-    console.warn(JSON.stringify({ evento: "limite_superado", accion: "pedir_link_panel" }));
+    registrar("warn", "limite_superado", { accion: "pedir_link_panel" });
     return { email, error: MENSAJE_LIMITE };
   }
 
@@ -44,7 +45,7 @@ export async function pedirLink(_previo: EstadoLogin, formData: FormData): Promi
   if (error && error.status !== 400 && error.status !== 422) {
     // 400/422: el email no tiene usuario. Cualquier otro error es del servicio y sí se avisa.
     // status 0 = no se llegó a Supabase (revisar NEXT_PUBLIC_SUPABASE_URL); 401 = llave anónima incorrecta.
-    console.error("No se pudo enviar el link de ingreso", { status: error.status, code: error.code, mensaje: error.message });
+    registrar("error", "login_link_fallido", { status: error.status, code: error.code, detalle: detalleError(error) });
     return { email, error: "No pudimos enviar el link. Intenta de nuevo en un momento." };
   }
   return { enviadoA: r.data.email };

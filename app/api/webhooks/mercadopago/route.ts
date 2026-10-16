@@ -2,6 +2,7 @@ import { registrarPagoMercadoPago } from "@/lib/mercadopago";
 import { esVendedorConectado } from "@/lib/mercadopago-cuentas";
 import { aceptarAviso, revisarFirmaAviso, webhookEstricto } from "@/lib/pagos";
 import { enModoPrueba } from "@/lib/sitio";
+import { registrar } from "@/lib/registro";
 
 /**
  * Aviso de Mercado Pago cuando cambia un pago. Solo usamos el id: el estado real se consulta
@@ -33,19 +34,19 @@ export async function POST(request: Request) {
   });
   if (firma !== "valida") {
     // Sin datos personales ni tokens: solo el motivo y el id del pago.
-    console.warn(JSON.stringify({ evento: "webhook_firma_invalida", motivo: firma, estricto, id }));
+    registrar("warn", "webhook_firma_invalida", { motivo: firma, estricto, id });
   }
   if (!aceptarAviso(firma, estricto)) return Response.json({ error: "Firma inválida" }, { status: 401 });
 
   const vendedor = cuerpo.user_id ?? url.searchParams.get("user_id");
   // Modo estricto: un user_id que no es una cuenta conectada guardada no se usa para nada.
   if (estricto && vendedor && !(await esVendedorConectado(String(vendedor)))) {
-    console.warn(JSON.stringify({ evento: "webhook_vendedor_desconocido", id }));
+    registrar("warn", "webhook_vendedor_desconocido", { id });
     return Response.json({ ok: true, ignorado: true });
   }
 
   // Si algo falla respondemos 500 y Mercado Pago reintenta más tarde.
   const resultado = await registrarPagoMercadoPago(id, { mpUserId: vendedor ? String(vendedor) : null });
-  console.info(JSON.stringify({ evento: "webhook_pago", id, resultado }));
+  registrar("info", "webhook_pago", { id, resultado });
   return Response.json({ ok: true, resultado });
 }

@@ -11,6 +11,7 @@ import { tieneCuentaConectada } from "@/lib/mercadopago-cuentas";
 import { bloqueoReserva, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enlaceWhatsapp, mensajeConsultaReserva } from "@/lib/whatsapp";
 import type { DatosReserva } from "@/lib/reserva-esquema";
+import { registrar } from "@/lib/registro";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
@@ -274,7 +275,7 @@ async function insertarReservaWeb(
     return { ok: true, codigo, estado };
   } catch (e) {
     if (e instanceof DemasiadasPendientes) {
-      console.warn(JSON.stringify({ evento: "limite_pendientes", cabanaId }));
+      registrar("warn", "limite_pendientes", { cabanaId });
       return { ok: false, error: MENSAJE_PENDIENTES };
     }
     if (e instanceof FechasNoDisponibles || codigoPostgres(e) === TRASLAPE_RESERVA) {

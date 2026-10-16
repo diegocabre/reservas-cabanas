@@ -44,3 +44,14 @@ describe.each([
     expect(trabajo).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("si el cron falla", () => {
+  it("responde 500 y deja el log estructurado cron_fallido", async () => {
+    vi.stubEnv("CRON_SECRET", "secreto-cron");
+    m.procesarSolicitudes.mockRejectedValue(new Error("conexión perdida"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await expirar(pedir("Bearer secreto-cron"))).status).toBe(500);
+    expect(JSON.parse(error.mock.calls[0][0] as string)).toEqual({ evento: "cron_fallido", cron: "expirar-reservas", detalle: "conexión perdida" });
+    error.mockRestore();
+  });
+});

@@ -125,3 +125,21 @@ Tests: un huésped que escribe `[PRUEBA]` o `[REVISAR PAGO]` no cambia nada (`li
 **Ojo con el orden:** hasta que se corra ese poblado, las reservas antiguas con `[REVISAR PAGO]` pendiente **no aparecen** como "pago por revisar" en el panel, y las antiguas con `[PRUEBA]` se tratan como reales (sus reseñas podrían publicarse y sus correos ya no dicen "[Prueba]"). Por eso: migración → listar → decidir y aplicar → recién entonces desplegar el código.
 
 Decisión: el detalle del panel ahora muestra `notas` tal cual; en reservas antiguas se verá el texto `[PRUEBA]` que ya estaba guardado.
+
+## Fase 6: verificaciones de estabilidad
+
+- **Cron:** los dos (`/api/cron/expirar-reservas`, `/api/cron/resenas`) ya exigían `Authorization: Bearer ${CRON_SECRET}` y rechazan si falta la variable (incluso `Bearer undefined`). Confirmado; se agregó `app/api/cron/cron.test.ts`. Ahora registran `cron_ejecutado` (solo conteos) o `cron_fallido` (y responden 500).
+- **Código de reserva:** usaba `crypto.randomInt` (criptográfico), pero con 6 caracteres de 31 son ≈ 29,7 bits, menos de 40. **Corregido solo para reservas nuevas:** 8 caracteres (`LL-7K3QX9AB`, ≈ 39,6 bits). Los códigos existentes (6 caracteres y los antiguos `LL-0001`) siguen funcionando: escrito sin guion, `/mi-reserva` y el buscador del panel prueban los dos largos (`candidatosCodigo`). Decisión: 8 y no 9 caracteres, para que siga siendo fácil de dictar; junto con el límite de "no encontradas" por IP no se puede adivinar probando. Subirlo es cambiar `LARGO_CODIGO`.
+- **Consultas públicas sin RLS:** inventario en `docs/consultas-publicas.md` y test en `tests/db/consultas-publicas.test.ts` (no devuelven datos de otras reservas ni datos personales).
+- **Logs:** `lib/registro.ts` → `registrar(nivel, evento, datos)`: una línea JSON buscable por `evento`; los errores se reducen a su mensaje y se les quitan emails, teléfonos y tokens (`sanear`). Se pasaron a este formato todos los logs de pagos, webhook, cron, correos, avisos, límites y conexión de Mercado Pago.
+
+Eventos (buscar en Vercel → Logs por el nombre):
+
+| Evento | Nivel | Dónde |
+| --- | --- | --- |
+| `webhook_firma_invalida`, `webhook_vendedor_desconocido`, `webhook_pago` | warn / info | webhook |
+| `pago_otra_cuenta`, `pago_inicio_fallido`, `pago_verificacion_fallida`, `correo_superadmin_fallido` | warn / error | pagos |
+| `mercadopago_conexion_fallida`, `mercadopago_renovacion_fallida` | error | cuentas de Mercado Pago |
+| `cron_ejecutado`, `cron_fallido`, `cron_limpieza_error` | info / error | cron |
+| `correo_fallido` (con `correo`: tipo), `correo_sin_configurar`, `correo_sobre_tope`, `aviso_fallido`, `aviso_registro_fallido`, `aviso_huesped_error`, `aviso_dueno_error`, `login_link_fallido` | warn / error | correos y avisos |
+| `limite_superado`, `limite_pendientes`, `antibot_rechazado`, `limites_error`, `limites_sin_secreto` | warn / error | límites |

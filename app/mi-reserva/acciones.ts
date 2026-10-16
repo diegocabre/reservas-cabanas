@@ -7,6 +7,7 @@ import { candidatosCodigo } from "@/lib/codigo";
 import { verificarAntiBot } from "@/lib/anti-bot";
 import { anotarIntento, claveHash, consumirIntento, ipDeLaSolicitud, limiteSuperado, limites, MENSAJE_LIMITE } from "@/lib/limites";
 import { existeReserva } from "@/lib/reservas";
+import { registrar } from "@/lib/registro";
 
 export type EstadoBusqueda = { error?: string; codigo?: string; email?: string };
 
@@ -31,7 +32,7 @@ export async function buscarReserva(_previo: EstadoBusqueda, formData: FormData)
     !(await consumirIntento("buscar_reserva_ip", claveHash("ip", ipDeLaSolicitud(await headers())), lim.consultasPorIpHora, 60)) ||
     (await limiteSuperado("buscar_reserva_codigo", claveCodigo, lim.busquedasPorCodigoHora, 60))
   ) {
-    console.warn(JSON.stringify({ evento: "limite_superado", accion: "buscar_reserva" }));
+    registrar("warn", "limite_superado", { accion: "buscar_reserva" });
     return { ...valores, error: MENSAJE_LIMITE };
   }
   // Sin guion el código puede tener el largo nuevo o el anterior: se prueban las dos formas.

@@ -17,6 +17,7 @@ import { anotarIntento, claveHash, consumirIntento, ipDeLaSolicitud, limiteSuper
 import { obtenerReservaPublica } from "@/lib/reservas";
 import { pagarAbono } from "./acciones";
 import { BotonPagar } from "./boton-pagar";
+import { registrar, detalleError } from "@/lib/registro";
 
 export const metadata: Metadata = {
   title: "Tu reserva",
@@ -47,12 +48,12 @@ export default async function PaginaReserva({ params, searchParams }: PageProps<
   const lim = limites();
   const ip = claveHash("ip", ipDeLaSolicitud(await headers()));
   if (await limiteSuperado("reserva_no_encontrada", ip, lim.noEncontradasPorIpHora, 60)) {
-    console.warn(JSON.stringify({ evento: "limite_superado", accion: "ver_reserva" }));
+    registrar("warn", "limite_superado", { accion: "ver_reserva" });
     notFound();
   }
   // Cada payment_id se consulta a la API de Mercado Pago: con tope por IP. Si se supera, el webhook igual lo aplica.
   if (idPago && (await consumirIntento("verificar_pago", ip, lim.consultasPorIpHora, 60))) {
-    await registrarPagoMercadoPago(idPago, { codigo: codigoReserva }).catch((e) => console.error("No se pudo verificar el pago", e));
+    await registrarPagoMercadoPago(idPago, { codigo: codigoReserva }).catch((e) => registrar("error", "pago_verificacion_fallida", { codigo: codigoReserva, detalle: detalleError(e) }));
   }
 
   const reserva = await obtenerReservaPublica(codigoReserva);

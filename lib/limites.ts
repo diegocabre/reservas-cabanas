@@ -5,6 +5,7 @@
 
 import { createHmac } from "node:crypto";
 import { db } from "@/lib/db";
+import { registrar, detalleError } from "@/lib/registro";
 
 type Env = Record<string, string | undefined>;
 
@@ -49,7 +50,7 @@ export function secretoLimites(env: Env = process.env): string {
   if (env.LIMITES_SECRETO) return env.LIMITES_SECRETO;
   if (!avisoSinSecreto) {
     avisoSinSecreto = true;
-    console.warn(JSON.stringify({ evento: "limites_sin_secreto", detalle: "Falta LIMITES_SECRETO; se usa un secreto derivado" }));
+    registrar("warn", "limites_sin_secreto", { detalle: "Falta LIMITES_SECRETO; se usa un secreto derivado" });
   }
   const base = env.MERCADOPAGO_CLAVE_CIFRADO ?? env.CRON_SECRET ?? env.DATABASE_URL ?? "sin-secreto";
   return createHmac("sha256", base).update("limites-publicos").digest("base64url");
@@ -90,7 +91,7 @@ export type AccionLimitada =
  * el límite deja pasar: un huésped real nunca queda bloqueado por un problema nuestro.
  */
 function fallaAbierta(e: unknown, accion: AccionLimitada) {
-  console.error(JSON.stringify({ evento: "limites_error", accion, detalle: e instanceof Error ? e.message.slice(0, 200) : "desconocido" }));
+  registrar("error", "limites_error", { accion, detalle: detalleError(e) });
 }
 
 /** Cuántos intentos hubo en la ventana (0 si la base falla). */
@@ -134,7 +135,7 @@ export async function consumirIntento(accion: AccionLimitada, clave: string, max
  */
 export async function cupoCorreo(email: string, ahora = new Date()): Promise<boolean> {
   const ok = await consumirIntento("correo", claveHash("email", email), limites().correosPorDestinoDia, 24 * 60, ahora);
-  if (!ok) console.warn(JSON.stringify({ evento: "correo_sobre_tope", detalle: "No se envía: tope diario por destinatario" }));
+  if (!ok) registrar("warn", "correo_sobre_tope", { detalle: "No se envía: tope diario por destinatario" });
   return ok;
 }
 
@@ -150,7 +151,7 @@ export async function limpiarIntentos(ahora = new Date()): Promise<number> {
     return count;
   } catch (e) {
     // Sin la tabla (código desplegado antes que la migración) el cron sigue expirando reservas.
-    console.error(JSON.stringify({ evento: "cron_limpieza_error", detalle: e instanceof Error ? e.message.slice(0, 200) : "desconocido" }));
+    registrar("error", "cron_limpieza_error", { detalle: detalleError(e) });
     return 0;
   }
 }

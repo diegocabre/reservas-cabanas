@@ -31,6 +31,7 @@ import { comoAdmin, deSusPropiedades, idsPropiedades, type AdminSesion } from "@
 import { aFechaIso, nochesEntre } from "@/lib/precios";
 import { urlDelSitio } from "@/lib/sitio";
 import { HORAS_MAXIMAS, HORAS_MINIMAS, HORAS_RECORDATORIO, limpiarMotivoRechazo, recordarAlDueno, recordarAlHuesped } from "@/lib/solicitudes";
+import { registrar, detalleError } from "@/lib/registro";
 
 const HORA_MS = 3_600_000;
 
@@ -287,14 +288,14 @@ async function registrarAviso(reservaId: string, clave: keyof typeof NOMBRE_AVIS
     if (resultado.ok) {
       await db.reserva.updateMany({ where: { id: reservaId, avisoFallido: { startsWith: nombre } }, data: { avisoFallido: null } });
     } else {
-      console.error("No se pudo enviar un aviso", nombre, reservaId, resultado.error);
+      registrar("error", "aviso_fallido", { aviso: nombre, reservaId, detalle: detalleError(resultado.error) });
       await db.reserva.update({
         where: { id: reservaId },
         data: { avisoFallido: `${nombre} (${formatearFechaHora(new Date())}): ${resultado.error}`.slice(0, 500) },
       });
     }
   } catch (e) {
-    console.error("No se pudo registrar el resultado del aviso", nombre, reservaId, e);
+    registrar("error", "aviso_registro_fallido", { aviso: nombre, reservaId, detalle: detalleError(e) });
   }
 }
 
@@ -312,7 +313,7 @@ export async function avisarHuesped(
     await registrarAviso(cargada.id, plantilla, resultado);
     return resultado;
   } catch (e) {
-    console.error("Error avisando al huésped", codigo, plantilla, e);
+    registrar("error", "aviso_huesped_error", { codigo, plantilla, detalle: detalleError(e) });
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
@@ -326,7 +327,7 @@ export async function avisarDueno(codigo: string, plantilla: PlantillaDueno): Pr
     await registrarAviso(cargada.id, `dueno_${plantilla}`, resultado);
     return resultado;
   } catch (e) {
-    console.error("Error avisando al dueño", codigo, plantilla, e);
+    registrar("error", "aviso_dueno_error", { codigo, plantilla, detalle: detalleError(e) });
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }

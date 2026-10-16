@@ -1,5 +1,6 @@
 import { procesarSolicitudes } from "@/lib/aprobacion";
 import { limpiarIntentos } from "@/lib/limites";
+import { detalleError, registrar } from "@/lib/registro";
 
 /**
  * Cron de Vercel (cada 30 minutos, plan Pro): cancela las reservas pendientes de pago que vencieron
@@ -17,5 +18,12 @@ export async function GET(request: Request) {
     return Response.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  return Response.json({ ...(await procesarSolicitudes()), intentosBorrados: await limpiarIntentos() });
+  try {
+    const resultado = { ...(await procesarSolicitudes()), intentosBorrados: await limpiarIntentos() };
+    registrar("info", "cron_ejecutado", { cron: "expirar-reservas", ...resultado });
+    return Response.json(resultado);
+  } catch (e) {
+    registrar("error", "cron_fallido", { cron: "expirar-reservas", detalle: detalleError(e) });
+    return Response.json({ error: "Falló el cron" }, { status: 500 });
+  }
 }

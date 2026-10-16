@@ -6,6 +6,7 @@ import { z } from "zod";
 import { verificarAntiBot } from "@/lib/anti-bot";
 import { claveHash, consumirIntento, ipDeLaSolicitud, limites, MENSAJE_LIMITE } from "@/lib/limites";
 import { pedirAccesoHuesped, replicarResena, solicitarPrivacidad } from "@/lib/resenas";
+import { registrar } from "@/lib/registro";
 
 // Derechos del huésped (Ley 21.719). Sin cuenta: se entra con un link de 24 h enviado al correo.
 
@@ -19,7 +20,7 @@ async function dentroDelLimite(formData: FormData, token?: string): Promise<bool
     ? (await consumirIntento("mis_datos", ip, lim.consultasPorIpHora, 60)) &&
       (await consumirIntento("mis_datos", claveHash("token", token), lim.consultasPorIpHora, 60))
     : await consumirIntento("pedir_link", ip, lim.linksPorIpHora, 60);
-  if (!ok) console.warn(JSON.stringify({ evento: "limite_superado", accion: token ? "mis_datos" : "pedir_link_huesped" }));
+  if (!ok) registrar("warn", "limite_superado", { accion: token ? "mis_datos" : "pedir_link_huesped" });
   return ok;
 }
 

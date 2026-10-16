@@ -10,6 +10,7 @@ import { enviarEmailReservaApartada } from "@/lib/emails";
 import { claveHash, consumirIntento, cupoCorreo, ipDeLaSolicitud, limites, MENSAJE_LIMITE } from "@/lib/limites";
 import { esquemaReserva } from "@/lib/reserva-esquema";
 import { crearReservaWeb } from "@/lib/reservas";
+import { registrar } from "@/lib/registro";
 
 export type EstadoFormulario = {
   /** Error general (fechas tomadas, capacidad, etc.). */
@@ -27,7 +28,7 @@ export async function crearReserva(_previo: EstadoFormulario, formData: FormData
 
   const antiBot = verificarAntiBot(formData, { exigirMarca: true });
   if (!antiBot.ok) {
-    console.warn(JSON.stringify({ evento: "antibot_rechazado", accion: "reservar", motivo: antiBot.motivo }));
+    registrar("warn", "antibot_rechazado", { accion: "reservar", motivo: antiBot.motivo });
     return { error: MENSAJE_ANTIBOT, valores };
   }
 
@@ -39,7 +40,7 @@ export async function crearReserva(_previo: EstadoFormulario, formData: FormData
   // Se cuenta solo lo que pasa la validación: equivocarse en un campo no gasta intentos.
   const ip = ipDeLaSolicitud(await headers());
   if (!(await consumirIntento("reservar", claveHash("ip", ip), limites().reservasPorIpHora, 60))) {
-    console.warn(JSON.stringify({ evento: "limite_superado", accion: "reservar" }));
+    registrar("warn", "limite_superado", { accion: "reservar" });
     return { error: MENSAJE_LIMITE, valores };
   }
 

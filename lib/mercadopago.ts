@@ -18,6 +18,7 @@ import {
 } from "@/lib/pagos";
 import { bloqueoCobro, SELECT_PUBLICACION } from "@/lib/publicacion";
 import { enModoPrueba, urlDelSitio } from "@/lib/sitio";
+import { registrar, detalleError } from "@/lib/registro";
 
 // Cada propiedad cobra con SU cuenta de Mercado Pago, conectada por el dueño (lib/mercadopago-cuentas.ts):
 // el dinero del huésped llega al dueño, nunca a Soluciones DyS. La cuenta de la plataforma
@@ -178,7 +179,7 @@ export async function registrarPagoMercadoPago(
     aprobado: pago.status === "approved",
   });
   if (cuenta !== "ok") {
-    console.warn(JSON.stringify({ evento: "pago_otra_cuenta", paymentId, codigo, resultado: cuenta }));
+    registrar("warn", "pago_otra_cuenta", { paymentId, codigo, resultado: cuenta });
     if (cuenta === "ignorar") return "ignorado";
     // Aprobado, pero no lo cobró la cuenta que corresponde: no se aplica ni se registra como pago de la
     // reserva; queda para revisión y se avisa al superadmin (una sola vez por pago).
@@ -272,8 +273,8 @@ async function avisarRevisionASuperadmins(codigo: string, refPago: string) {
         "La reserva NO se confirmó y quedó marcada para revisión en el panel. Revisa en Mercado Pago quién lo cobró y si corresponde reembolsar.",
       ].join("\n\n"),
     );
-    if (!r.ok) console.error(JSON.stringify({ evento: "correo_superadmin_fallido", codigo, detalle: r.error }));
+    if (!r.ok) registrar("error", "correo_superadmin_fallido", { codigo, detalle: detalleError(r.error) });
   } catch (e) {
-    console.error(JSON.stringify({ evento: "correo_superadmin_fallido", codigo, detalle: e instanceof Error ? e.message : "desconocido" }));
+    registrar("error", "correo_superadmin_fallido", { codigo, detalle: detalleError(e) });
   }
 }
