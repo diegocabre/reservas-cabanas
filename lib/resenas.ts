@@ -314,7 +314,7 @@ export const MAXIMO_RESENAS_PUBLICAS = 100;
 
 /**
  * Reseñas PUBLICADAS de una cabaña, sin datos personales (solo nombre de pila). Lo único que lee la
- * parte pública: ni retenidas, ni ocultas, ni de reservas de prueba ([PRUEBA]: nunca llegan a la
+ * parte pública: ni retenidas, ni ocultas, ni de reservas de prueba (es_prueba: nunca llegan a la
  * página ni al JSON-LD). shortcut: tope de 100, paginar en la base si alguna cabaña lo pasa.
  */
 export async function resenasPublicas(cabanaId: string): Promise<ResenaPublica[]> {
