@@ -1,6 +1,23 @@
 # Endurecimiento y estabilidad
 
-Rama `fix/endurecimiento`, creada desde `main` (rama de producción: `5d0762d merge feat/plataforma`). Basado en `docs/diagnostico.md`. Nada de esto está desplegado ni migrado en producción.
+Rama `fix/endurecimiento`, creada desde `main` (rama de producción: `5d0762d merge feat/plataforma`). Basado en `docs/diagnostico.md`. Nada de esto está desplegado ni migrado en producción. Las migraciones y los tests de base se probaron solo en el Postgres local (Docker), nunca contra la base de `.env`.
+
+## Estado de cada hallazgo del diagnóstico
+
+| Hallazgo | Estado |
+| --- | --- |
+| Estados guardados en `notas` | **Confirmado y corregido** (fase 5). Falta decidir a mano las reservas antiguas (`npm run marcas:notas`). |
+| `lib/resenas.ts` de 864 líneas | **Confirmado, pospuesto** (fase 7 opcional; ver "Pendiente"). |
+| `registrarPagoMercadoPago` hace demasiado / decisión sin tests | **Confirmado y corregido** (fase 0: caracterización; fase 4: `decidirEstadoPago` pura). |
+| Solo el panel tiene RLS como segunda defensa | **Confirmado; es diseño.** Documentado con test (`docs/consultas-publicas.md`). |
+| Next 16.3.6 vulnerable | **Confirmado y corregido**: 16.3.8. |
+| Prisma 7.10.0 con `mysql2`/`deepmerge-ts` vulnerables | **Confirmado y corregido**: 7.10.1. |
+| Sin límites ni anti-bot en rutas públicas | **Confirmado y corregido** (fase 2). Segunda capa en el firewall de Vercel: paso manual. |
+| Webhook acepta avisos sin firma si falta el secreto | **Confirmado; corregido detrás de interruptor** (`MERCADOPAGO_WEBHOOK_STRICT`, apagado por defecto). |
+| `cobroDeLaCuentaEsperada` acepta cualquier cuenta sin cuenta conectada | **Confirmado** (alcanzable con un link de solicitud tras desconectar la cuenta, o un pago armado por otro dueño conectado); **corregido detrás de interruptor** (`MERCADOPAGO_COBRO_ESTRICTO`). |
+| Sin cabeceras de seguridad | **Confirmado y corregido** (fase 3). |
+| (Nuevo, fase 6) Código de reserva de ≈ 29,7 bits | **Confirmado y corregido** para reservas nuevas (8 caracteres). |
+| (Nuevo, fase 6) Cron | **No reproducido**: ya exigían `CRON_SECRET`. Se agregaron tests y logs. |
 
 ## Línea base (15 oct 2026, antes de cualquier cambio)
 
@@ -143,3 +160,82 @@ Eventos (buscar en Vercel → Logs por el nombre):
 | `cron_ejecutado`, `cron_fallido`, `cron_limpieza_error` | info / error | cron |
 | `correo_fallido` (con `correo`: tipo), `correo_sin_configurar`, `correo_sobre_tope`, `aviso_fallido`, `aviso_registro_fallido`, `aviso_huesped_error`, `aviso_dueno_error`, `login_link_fallido` | warn / error | correos y avisos |
 | `limite_superado`, `limite_pendientes`, `antibot_rechazado`, `limites_error`, `limites_sin_secreto` | warn / error | límites |
+
+## Fase 7 (opcional): dividir `lib/resenas.ts`, no se hizo
+
+Todo lo anterior quedó en verde, pero se dejó fuera de esta rama a propósito: es un movimiento de ~860 líneas sin cambio de comportamiento y, mezclado con 15 commits que tocan pagos, haría más difícil revisar lo que sí cambia comportamiento antes de producción. Conviene hacerlo en su propia rama después de desplegar esta.
+
+## Decisiones tomadas
+
+1. `next` 16.3.8 (parche de la misma versión menor) en vez de 16.4.2 (fase 1).
+2. Lockfile editado solo en las entradas actualizadas, por un bug de npm 11.6 que borraba los binarios de Linux (fase 1).
+3. `images.remotePatterns` se deja igual: ya estaba restringido a lo que usan las cabañas demo (fase 1).
+4. Si falta `LIMITES_SECRETO`, la sal se deriva de otro secreto del servidor (para no romper producción si se despliega antes de configurarla), con un aviso en el log (fase 2).
+5. Los límites dejan pasar si la base falla o la tabla no existe (fase 2).
+6. Noches máximas por defecto: 30 (configurable). Una estadía más larga se pide por WhatsApp (fase 2).
+7. Marca anti-bot solo en el formulario de reservar (página dinámica); en `/mi-reserva`, `/mis-datos`, reseñas y login solo el señuelo, porque algunas son estáticas y la marca quedaría fija desde el build. Un envío en menos de 3 s se rechaza con "Recarga la página e intenta de nuevo"; al reintentar pasa (probado en el navegador) (fase 2).
+8. El tope de correos (3 por destinatario por día) aplica solo a correos que dispara una acción pública; la confirmación de un pago aprobado y los avisos al dueño no se limitan (fase 2).
+9. `/reserva/[codigo]` se trata como ruta con token: sin iframes, `no-referrer` y `no-store` (fase 3).
+10. Las páginas públicas de la cabaña y de reservar no prohíben iframes (fase 3).
+11. Con `MERCADOPAGO_WEBHOOK_STRICT=false`, una firma inválida con el secreto configurado se sigue rechazando con 401, como hoy; solo "sin secreto" se procesa con log (fase 4).
+12. La validación del `user_id` del webhook va dentro del modo estricto: en modo prueba el `user_id` es el de la plataforma, que no es una cuenta conectada (fase 4).
+13. La regla de cuenta de cobro tiene su propio interruptor (`MERCADOPAGO_COBRO_ESTRICTO`), que también aplica en modo prueba para poder probarla en preview. "Cuenta de la plataforma" significa que el pago se consultó con su token (fase 4).
+14. Un pago aprobado de otra cuenta no se registra como pago de la reserva (no sumaría a "lo pagado"), pero deja la marca de revisión y avisa al superadmin (fase 4).
+15. `notas` se muestra tal cual en el panel; en reservas antiguas se verá el texto `[PRUEBA]` que ya estaba guardado (fase 5).
+16. Código de reserva de 8 caracteres (≈ 39,6 bits) y no 9, para que siga siendo fácil de dictar (fase 6).
+17. Los tests de base anteriores reusan el mismo email y teléfono en muchas reservas: `vitest.db.config.mts` les sube `LIMITE_PENDIENTES_POR_CONTACTO`; `tests/db/limites.test.ts` prueba el valor por defecto (fase 2).
+
+## Variables de entorno nuevas
+
+Todas documentadas en `.env.example`. Ninguna es obligatoria para que la app funcione igual que hoy.
+
+| Variable | Por defecto | Qué hace |
+| --- | --- | --- |
+| `LIMITES_SECRETO` | derivada (con aviso) | Sal de los hashes de IP, email y teléfono, y firma de la marca anti-bot. **Definirla en Vercel** (32+ caracteres aleatorios). Si cambia, solo se reinician los contadores. |
+| `LIMITE_PENDIENTES_POR_CONTACTO` | 2 | Pendientes por email y por teléfono en una cabaña |
+| `LIMITE_RESERVAS_IP_HORA` | 10 | Reservas web por IP por hora |
+| `LIMITE_CORREOS_DESTINO_DIA` | 3 | Correos por destinatario por día (acciones públicas) |
+| `RESERVAS_MAX_NOCHES` | 30 | Noches máximas de una reserva web |
+| `LIMITE_CONSULTAS_IP_HORA` | 30 | Búsquedas, reseñas, mis datos, pagar y verificar pago, por IP por hora |
+| `LIMITE_BUSQUEDAS_CODIGO_HORA` | 10 | Búsquedas fallidas por código por hora |
+| `LIMITE_NO_ENCONTRADAS_IP_HORA` | 20 | Páginas de reserva no encontradas por IP por hora |
+| `LIMITE_LINKS_IP_HORA` | 10 | Pedidos de link (panel, mis datos) por IP por hora |
+| `MERCADOPAGO_WEBHOOK_STRICT` | `false` | Webhook estricto (fase 4) |
+| `MERCADOPAGO_COBRO_ESTRICTO` | `false` | Regla explícita de la cuenta de cobro (fase 4) |
+
+## Pasos manuales (para ti)
+
+1. **Respaldo manual de la base** de producción antes de aplicar migraciones (Supabase → Database → Backups, o `pg_dump` con `DIRECT_URL`).
+2. **Vercel → Environment Variables:** confirmar que apuntan al proyecto de Supabase correcto (en octubre todavía apuntaban al antiguo); definir `LIMITES_SECRETO`; confirmar que `MERCADOPAGO_WEBHOOK_SECRET` está definida (Mercado Pago Developers → tu aplicación → Webhooks → clave secreta). Dejar `MERCADOPAGO_WEBHOOK_STRICT` y `MERCADOPAGO_COBRO_ESTRICTO` sin definir (o en `false`).
+3. **Marcas antiguas:** correr `npm run marcas:notas` contra producción (solo lista). Decidir qué reservas eran de prueba y cuáles tienen un pago por revisar, y aplicarlo con `npm run marcas:notas -- --aplicar --prueba=... --revisar=... --permitir-supabase`.
+4. **Preview:** probar un pago completo en modo de pruebas de Mercado Pago (solicitud, aprobación, pago y confirmación; y también una reserva directa), y revisar las cabeceras con `curl -I https://<preview>/reserva/<codigo>` y `curl -I https://<preview>/`.
+5. **Firewall de Vercel:** crear la regla de la fase 2 (primero en modo Log).
+6. **Webhook estricto:** revisar los logs `webhook_firma_invalida` durante unos días después del despliegue. Si no aparece ninguno legítimo, poner `MERCADOPAGO_WEBHOOK_STRICT=true` (y después `MERCADOPAGO_COBRO_ESTRICTO=true`) y volver a desplegar.
+7. **Correo:** confirmar en el DNS del dominio de envío (`reservas.solucionesdys.cl`) que SPF, DKIM (los registros que entrega Resend) y DMARC (`_dmarc`, al menos `p=none` con `rua`) están configurados y verificados en Resend.
+
+## Orden recomendado para producción
+
+1. Respaldo de la base.
+2. Migraciones (`npx prisma migrate deploy` con el `DIRECT_URL` de producción): `20261017120000_intentos_publicos` y `20261017130000_estados_fuera_de_notas`. Las dos solo agregan (una tabla y tres columnas con default): el código actual de `main` sigue funcionando con ellas.
+3. Poblado manual de marcas (paso manual 3). **Hacerlo antes de desplegar el código**: si no, los pagos antiguos por revisar no aparecen en el panel y las reservas antiguas de prueba se tratan como reales.
+4. Variables en Vercel (paso manual 2).
+5. Desplegar la rama en preview y probar (paso manual 4).
+6. Merge a `main` y despliegue a producción.
+7. Regla del firewall (paso manual 5).
+8. Unos días después: interruptores estrictos (paso manual 6).
+
+## Notas de reversa
+
+- **Código:** cada fase es un commit propio; `git revert` del commit (o de los de la fase) y volver a desplegar. Revertir el código **antes** de cualquier reversa de migración: el código nuevo usa las columnas y la tabla nuevas.
+- **Interruptores:** `MERCADOPAGO_WEBHOOK_STRICT=false` y `MERCADOPAGO_COBRO_ESTRICTO=false` vuelven al comportamiento anterior sin tocar el código (solo hay que volver a desplegar con las variables).
+- **Límites demasiado estrictos:** subir el umbral por variable de entorno, sin tocar código.
+- **`intentos_publicos`:** `prisma/reversas/intentos_publicos.down.sql` y luego `delete from "_prisma_migrations" where migration_name = '20261017120000_intentos_publicos';`. Solo se pierden contadores.
+- **Estados fuera de `notas`:** primero listar lo que quedó en las columnas (`select codigo, es_prueba, revisar_pago, revisar_pago_motivo from reserva where es_prueba or revisar_pago;`), volver al código anterior (que lee `notas`) y después correr `prisma/reversas/estados_fuera_de_notas.down.sql` y `delete from "_prisma_migrations" where migration_name = '20261017130000_estados_fuera_de_notas';`. Las marcas de revisión creadas después del despliegue habría que copiarlas a `notas` a mano.
+- **Dependencias:** revertir por separado el commit de `next` o el de `prisma` (cada uno incluye su lockfile).
+
+## Verificación final
+
+- `npm run verify` (tests + lint + build + `npm audit --omit=dev`): en verde, con 422 tests y 0 vulnerabilidades de producción.
+- `npm run test:db` contra el Postgres local: 109 tests en verde.
+- Navegador (local, cabaña demo, escritorio y móvil): una reserva normal llega a la confirmación con código de 8 caracteres; el señuelo lleno y el envío instantáneo se rechazan con el mensaje genérico; el reintento de una persona se acepta; unas notas con `[REVISAR PAGO]` no activan nada; consola sin errores. El panel no se pudo revisar visualmente en local (el login usa el Supabase Auth de producción): está cubierto por tipos y tests de base.
+- No verificado: un pago real con Mercado Pago en preview (requiere credenciales de prueba y https; es el paso manual 4).
