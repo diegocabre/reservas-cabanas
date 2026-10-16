@@ -13,7 +13,8 @@
     "huespedes:poblar": "tsx scripts/poblar-huespedes.ts",
     "test": "vitest run",
     "test:db": "vitest run --config vitest.db.config.mts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify": "npm test && npm run lint && npm run build && npm audit --omit=dev"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
