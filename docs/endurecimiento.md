@@ -7,7 +7,7 @@ Rama `fix/endurecimiento`, creada desde `main` (rama de producción: `5d0762d me
 | Hallazgo | Estado |
 | --- | --- |
 | Estados guardados en `notas` | **Confirmado y corregido** (fase 5). Falta decidir a mano las reservas antiguas (`npm run marcas:notas`). |
-| `lib/resenas.ts` de 864 líneas | **Confirmado, pospuesto** (fase 7 opcional; ver "Pendiente"). |
+| `lib/resenas.ts` de 864 líneas | **Confirmado y corregido** en la rama `refactor/dividir-resenas` (fase 7). |
 | `registrarPagoMercadoPago` hace demasiado / decisión sin tests | **Confirmado y corregido** (fase 0: caracterización; fase 4: `decidirEstadoPago` pura). |
 | Solo el panel tiene RLS como segunda defensa | **Confirmado; es diseño.** Documentado con test (`docs/consultas-publicas.md`). |
 | Next 16.3.6 vulnerable | **Confirmado y corregido**: 16.3.8. |
@@ -161,9 +161,22 @@ Eventos (buscar en Vercel → Logs por el nombre):
 | `correo_fallido` (con `correo`: tipo), `correo_sin_configurar`, `correo_sobre_tope`, `aviso_fallido`, `aviso_registro_fallido`, `aviso_huesped_error`, `aviso_dueno_error`, `login_link_fallido` | warn / error | correos y avisos |
 | `limite_superado`, `limite_pendientes`, `antibot_rechazado`, `limites_error`, `limites_sin_secreto` | warn / error | límites |
 
-## Fase 7 (opcional): dividir `lib/resenas.ts`, no se hizo
+## Fase 7: dividir `lib/resenas.ts` (rama `refactor/dividir-resenas`)
 
-Todo lo anterior quedó en verde, pero se dejó fuera de esta rama a propósito: es un movimiento de ~860 líneas sin cambio de comportamiento y, mezclado con 15 commits que tocan pagos, haría más difícil revisar lo que sí cambia comportamiento antes de producción. Conviene hacerlo en su propia rama después de desplegar esta.
+En su propia rama, sobre `fix/endurecimiento`, para no mezclarla con los cambios de pagos. Solo se movió código: ninguna línea de lógica ni de comentarios cambió. Solo se agregó `export` a los helpers compartidos (se comprobó con un script que compara las líneas con el original). `lib/resenas/index.ts` conserva la cabecera y reexporta exactamente los mismos 29 nombres, así que ningún `import ... from "@/lib/resenas"` cambió. Los tests no se tocaron (`npm test`, `npm run lint`, `npm run build` y `tests/db/resenas.test.ts` contra el Postgres local en verde después de cada commit).
+
+| Archivo | Qué tiene |
+| --- | --- |
+| `index.ts` | Cabecera con el diseño general y reexports (la API pública). |
+| `comun.ts` | `Tx`, `Conexion`, constantes y helpers internos (`fecha`, `emailValido`, `elegible`), `asegurarHuesped`, `asegurarCiclo`, `urlResenaDeCiclo` y `evaluarDesbloqueo` (doble ciego). |
+| `tokens.ts` | Reseña de la cabaña con el link de la invitación: `abrirInvitacion`, `validarResenaCabana`, `enviarResenaCabana`. |
+| `publica.ts` | `resenasPublicas` y `MAXIMO_RESENAS_PUBLICAS` (página de la cabaña). |
+| `panel.ts` | Dueño: `datosResenasPanel`, `responderResena`, `reportarResena`, `pedirResenaPorWhatsapp`, reseña privada del huésped, `historialHuesped`, `resenasDeReserva`. |
+| `derechos-huesped.ts` | Ley 21.719: `pedirAccesoHuesped`, `abrirAccesoHuesped`, `replicarResena`, `solicitarPrivacidad`. |
+| `moderacion.ts` | Superadmin: `cargarSuperadmin`, `colaModeracion`, `resolverReporte`, `atenderSolicitudPrivacidad`. |
+| `cron.ts` | `procesarResenas` (invitaciones, recordatorios y desbloqueo). |
+
+No hay módulo de "correos": este código no envía correos por su cuenta, solo llama a `avisarHuesped`/`avisarDueno` (`lib/aprobacion.ts`) y a `enviarLinkAccesoHuesped` (`lib/notificaciones.ts`). Además de los cinco módulos del diagnóstico salieron `panel.ts` y `publica.ts`, porque ese código no correspondía a ninguno de ellos.
 
 ## Decisiones tomadas
 
