@@ -195,7 +195,7 @@ export async function crearReservaWeb(datos: DatosReserva): Promise<ResultadoRes
     ),
   };
 
-  // Código aleatorio. Si por azar ya existe (1 en ~887 millones), se reintenta con otro.
+  // Código aleatorio. Si por azar ya existe (casi imposible: 31^8 combinaciones), se reintenta con otro.
   for (let intento = 1; ; intento++) {
     try {
       return await insertarReservaWeb(generarCodigoReserva(prefijoCodigo), reserva);

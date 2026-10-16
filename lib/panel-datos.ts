@@ -207,7 +207,7 @@ export async function buscarReservas(admin: AdminSesion, f: FiltrosReservas) {
       busqueda
         ? {
             OR: [
-              { codigo: { contains: busqueda.codigo, mode: "insensitive" } },
+              ...busqueda.codigos.map((codigo) => ({ codigo: { contains: codigo, mode: "insensitive" as const } })),
               { huespedNombre: { contains: busqueda.texto, mode: "insensitive" } },
               { huespedEmail: { contains: busqueda.texto, mode: "insensitive" } },
             ],

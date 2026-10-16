@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { normalizarCodigo } from "@/lib/codigo";
+import { candidatosCodigo } from "@/lib/codigo";
 import { verificarAntiBot } from "@/lib/anti-bot";
 import { anotarIntento, claveHash, consumirIntento, ipDeLaSolicitud, limiteSuperado, limites, MENSAJE_LIMITE } from "@/lib/limites";
 import { existeReserva } from "@/lib/reservas";
@@ -23,10 +23,10 @@ export async function buscarReserva(_previo: EstadoBusqueda, formData: FormData)
   const r = esquema.safeParse(valores);
   if (!r.success) return { ...valores, error: r.error.issues[0].message };
 
-  const codigo = normalizarCodigo(r.data.codigo);
+  const candidatos = candidatosCodigo(r.data.codigo);
   // Límites: búsquedas por IP, y búsquedas fallidas por código (nadie prueba emails contra un código).
   const lim = limites();
-  const claveCodigo = claveHash("codigo", codigo);
+  const claveCodigo = claveHash("codigo", candidatos.join(" "));
   if (
     !(await consumirIntento("buscar_reserva_ip", claveHash("ip", ipDeLaSolicitud(await headers())), lim.consultasPorIpHora, 60)) ||
     (await limiteSuperado("buscar_reserva_codigo", claveCodigo, lim.busquedasPorCodigoHora, 60))
@@ -34,8 +34,11 @@ export async function buscarReserva(_previo: EstadoBusqueda, formData: FormData)
     console.warn(JSON.stringify({ evento: "limite_superado", accion: "buscar_reserva" }));
     return { ...valores, error: MENSAJE_LIMITE };
   }
+  // Sin guion el código puede tener el largo nuevo o el anterior: se prueban las dos formas.
+  let codigo: string | undefined;
+  for (const c of candidatos) if (!codigo && (await existeReserva(c, r.data.email))) codigo = c;
   // Mismo mensaje si el código no existe o si el email no coincide: no revelamos cuál falló.
-  if (!(await existeReserva(codigo, r.data.email))) {
+  if (!codigo) {
     await anotarIntento("buscar_reserva_codigo", claveCodigo);
     return noEncontrada;
   }
