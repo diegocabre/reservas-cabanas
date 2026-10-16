@@ -61,3 +61,16 @@ Tests: `lib/limites.test.ts`, `lib/anti-bot.test.ts`, `app/reservar/[propiedad]/
 4. **Then**: **Rate Limit**, algoritmo *Fixed Window*, **60 segundos**, **20 solicitudes**, clave **IP**. Acción al superar: **Deny** (429) o **Challenge**.
 5. Guardar, dejar en **Log** un par de días para ver que ningún huésped real aparece, y después **Publish**.
 6. No incluir `/api/webhooks/mercadopago` ni `/api/cron/*`: Mercado Pago y Vercel Cron llaman desde IPs compartidas.
+
+## Fase 3: cabeceras de seguridad
+
+`lib/cabeceras.ts`, aplicado en `next.config.ts` (`headers()`):
+
+- **Todas las rutas:** `X-Content-Type-Options: nosniff`, `Strict-Transport-Security: max-age=15552000` (6 meses, sin `includeSubDomains` ni `preload`), `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()` (la app no usa ninguno; el pago es una redirección a Mercado Pago, no la Payment Request API).
+- **`/admin/*`, `/mis-datos/*`, `/resena/*` y `/reserva/*`:** `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`. Se sumó `/reserva/[codigo]` porque el código funciona como token: quien lo tiene ve la reserva.
+- **Sin restricción de iframes** en la portada, la propiedad, la cabaña y `/reservar`: no hay evidencia en el repo de que se incrusten, pero tampoco de que no (decisión: dejarlas sin `frame-ancestors`).
+- **CSP propuesta solo en `Content-Security-Policy-Report-Only`** (no bloquea nada). Para evaluarla: abrir en preview las páginas públicas, la reserva, el pago con Mercado Pago, el panel y el login con DevTools → Consola; cada violación aparece como `[Report Only]`. Si después de unos días no aparece nada que importe, se puede pasar a `Content-Security-Policy` (ojo: `script-src 'unsafe-inline'` sigue siendo necesario mientras no se usen nonces). Con un build de producción local no apareció ninguna violación en la cabaña ni en la reserva.
+
+Verificación (`curl -I`, build de producción local con la base local): las globales en todas las rutas; las privadas con `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `no-referrer` y `Cache-Control: no-store`; la cabaña mantiene su caché (`s-maxage=300`). En `next dev`, Next reemplaza `Cache-Control`; en producción se respeta. `/mis-datos` (estática) deja de guardarse en la CDN: es una página liviana.
+
+Pendiente manual: probar en preview un pago completo con Mercado Pago (modo prueba) con estas cabeceras.
