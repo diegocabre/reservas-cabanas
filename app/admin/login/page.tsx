@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { PerfilVolcan } from "@/components/perfil-volcan";
+import Image from "next/image";
+import logo from "@/public/dys-reservas-claro.png";
 import { mensajeLogin } from "@/lib/acceso";
 import { obtenerAdmin } from "@/lib/admin";
 import { FormularioLogin } from "./formulario-login";
@@ -17,7 +18,7 @@ export default async function PaginaLogin({ searchParams }: PageProps<"/admin/lo
   return (
     <main className="mx-auto w-full max-w-md flex-1 px-5 pt-12 pb-16">
       <div className="text-center">
-        <PerfilVolcan className="mx-auto h-10 w-48" />
+        <Image src={logo} alt="DyS Reservas" sizes="80px" priority className="mx-auto size-20 rounded-2xl" />
         <h1 className="mt-5 font-display text-3xl font-semibold text-balance">Panel de tu cabaña</h1>
         <p className="mt-2 text-tinta-suave">Te enviamos un link a tu email para entrar, sin contraseña.</p>
       </div>
