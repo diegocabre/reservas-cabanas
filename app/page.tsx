@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { EnlaceMiReserva } from "@/components/enlace-mi-reserva";
-import { PerfilVolcan } from "@/components/perfil-volcan";
+import Image from "next/image";
+import logo from "@/public/dys-reservas-claro.png";
 import { TarjetaPropiedad } from "@/components/tarjeta-propiedad";
 import { obtenerDirectorio } from "@/lib/cabanas";
 
@@ -27,7 +28,7 @@ export default async function Inicio() {
   return (
     <main className="flex-1 pb-16">
       <header className="mx-auto max-w-6xl px-5 pt-10 pb-8 text-center md:px-6 md:pt-16 md:pb-12">
-        <PerfilVolcan className="mx-auto h-12 w-60 md:h-14 md:w-72" />
+        <Image src={logo} alt="DyS Reservas" sizes="112px" priority className="mx-auto size-24 rounded-2xl md:size-28" />
         <h1 className="mt-5 font-display text-[2.4rem] leading-[1.05] font-semibold text-balance text-tinta md:text-6xl">
           Reservas Cabañas Sur
         </h1>
